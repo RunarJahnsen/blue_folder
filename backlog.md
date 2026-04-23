@@ -1,4 +1,4 @@
-# Backlog — Allsang-appen
+# Backlog — Blå perm
 
 Prioritert etter vertikale slices. Hver slice er en komplett leveranse som går gjennom UI, data, logikk og (der relevant) sanntid.
 
@@ -18,7 +18,7 @@ Mål: Prosjektet er oppe på Vercel, koblet til Supabase, og en bruker kan taste
 - [ ] Legg til `vercel.json` med SPA-fallback så direktelenker til rom fungerer
 - [ ] Seed én test-group med access code i Supabase
 - [ ] Bygg group access-side (`/`): inputfelt for access code, validering mot Supabase, redirect til `/{groupId}` ved treff
-- [ ] Lagre `groupId` i `localStorage` eller session så brukeren slipper å taste koden igjen
+- [ ] Lagre `groupId` i `localStorage` så brukeren slipper å taste koden igjen
 - [ ] Generer og lagre `session_id` i `localStorage` (brukes som anonym vert-identifikator)
 - [ ] Deploy til Vercel og verifiser at miljøvariabler fungerer
 
@@ -59,13 +59,13 @@ Mål: Room-siden viser all relevant informasjon hentet fra Supabase, uten sannti
 
 ### Tasks
 
-- [ ] Bygg room-side (`/{groupId}/rooms/[roomId]`):
+- [ ] Bygg room-side (`/{groupId}/rooms/:roomId`):
   - Header: tittel, dato, status-badge, mode
   - Seksjon "Live nå": viser `current` RoomSongEntry (sang + URL)
   - Seksjon "Kø": viser alle `queued` entries i rekkefølge
   - Seksjon "Forslag": viser alle `suggested` entries (kun synlig i suggest-mode)
   - Seksjon "Spilt": viser alle `played` entries
-- [ ] Hent data server-side med Supabase server-klient
+- [ ] Hent data med Supabase-klienten
 - [ ] Vis tomt state pent for hver seksjon
 
 ### Akseptansekriterier
@@ -76,9 +76,11 @@ Mål: Room-siden viser all relevant informasjon hentet fra Supabase, uten sannti
 
 ---
 
-## Slice 4 — Legge til sanger og kø-logikk
+## Slice 4 — Legge til sanger, kø-logikk og sanntid
 
-Mål: Brukeren kan legge til sanger i rommet, og verten kan styre køen.
+Mål: Brukeren kan legge til sanger i rommet, verten kan styre køen, og alle klienter oppdateres automatisk i sanntid.
+
+Sanntid bygges inn her fordi kø-logikk og sanntid er to sider av samme sak — det gir ingen mening å teste kø-logikk uten å verifisere at endringer synkroniseres mellom klienter.
 
 ### Tasks
 
@@ -100,21 +102,6 @@ Mål: Brukeren kan legge til sanger i rommet, og verten kan styre køen.
 - [ ] Vert kan sette room til `active` (fra `planned`)
 - [ ] Vert kan sette room til `completed` (fra `active`)
 - [ ] Vert-sjekk basert på `session_id` i `localStorage`
-
-### Akseptansekriterier
-- Legg til sang fungerer i alle tre modes
-- Soft deduplicering vises korrekt
-- "Spill neste" oppdaterer state korrekt i Supabase
-- Vert-handlinger er ikke synlige for ikke-verter (i host_only og suggest)
-
----
-
-## Slice 5 — Sanntid
-
-Mål: Alle i rommet ser samme sang samtidig uten å måtte refreshe.
-
-### Tasks
-
 - [ ] Sett opp Supabase Realtime-subscription på `rooms` (filtrer på `room_id`)
 - [ ] Sett opp Realtime-subscription på `room_song_entries` (filtrer på `room_id`)
 - [ ] Oppdater UI automatisk når:
@@ -125,13 +112,17 @@ Mål: Alle i rommet ser samme sang samtidig uten å måtte refreshe.
 - [ ] Håndter subscription cleanup ved unmount
 
 ### Akseptansekriterier
+- Legg til sang fungerer i alle tre modes
+- Soft deduplicering vises korrekt
+- "Spill neste" oppdaterer state korrekt i Supabase
+- Vert-handlinger er ikke synlige for ikke-verter (i host_only og suggest)
 - To nettlesere åpne i samme rom: endring i én vises i den andre innen ~1 sekund
 - Ingen full-page reload nødvendig
 - Fungerer på mobil med dårlig nett (graceful degradation)
 
 ---
 
-## Slice 6 — Historikk og kopiering av room
+## Slice 5 — Historikk og kopiering av room
 
 Mål: Brukeren kan se historikk fra avsluttede rom og bruke dem som utgangspunkt for nye.
 
@@ -157,7 +148,7 @@ Mål: Brukeren kan se historikk fra avsluttede rom og bruke dem som utgangspunkt
 
 ---
 
-## Slice 7 — Favoritter
+## Slice 6 — Favoritter
 
 Mål: Gruppa kan lagre favoritter og bruke dem når de legger til sanger.
 
@@ -190,4 +181,5 @@ Mål: Gruppa kan lagre favoritter og bruke dem når de legger til sanger.
 - Personlige favoritter
 - Flere grupper med full isolasjon
 - Bedre sangbibliotek med flere versjoner per sang
+- Lagre sangtekst og besifring i Supabase (gjør sanger uavhengige av ekstern URL)
 - Integrasjoner (Spotify, YouTube, Genius)

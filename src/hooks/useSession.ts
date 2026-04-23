@@ -1,12 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const SESSION_ID_KEY = 'allsang_session_id';
 
 export function useSession() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Get existing session ID or create new one
+  const [sessionId] = useState<string | null>(() => {
+    // Initialize session ID synchronously
     let existingSessionId = localStorage.getItem(SESSION_ID_KEY);
 
     if (!existingSessionId) {
@@ -14,8 +12,8 @@ export function useSession() {
       localStorage.setItem(SESSION_ID_KEY, existingSessionId);
     }
 
-    setSessionId(existingSessionId);
-  }, []);
+    return existingSessionId;
+  });
 
   return sessionId;
 }

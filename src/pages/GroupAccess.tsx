@@ -21,7 +21,7 @@ export function GroupAccess() {
         .from('groups')
         .select('id')
         .eq('access_code', accessCode.toLowerCase())
-        .single();
+        .single<{ id: string }>();
 
       if (error || !data) {
         setError('Ugyldig tilgangskode. Prøv igjen.');
@@ -32,6 +32,7 @@ export function GroupAccess() {
       localStorage.setItem('allsang_group_id', data.id);
       navigate(`/${data.id}`);
     } catch (err) {
+      console.error('Error validating access code:', err);
       setError('Noe gikk galt. Prøv igjen.');
     } finally {
       setIsLoading(false);
@@ -42,7 +43,7 @@ export function GroupAccess() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Allsang-appen</CardTitle>
+          <CardTitle>Blå perm</CardTitle>
           <CardDescription>
             Skriv inn tilgangskoden for å komme inn i gruppen din
           </CardDescription>

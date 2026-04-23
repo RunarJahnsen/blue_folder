@@ -48,3 +48,35 @@ export interface Favorite {
   song_id: string;
   created_at: string;
 }
+
+export type Database = {
+  public: {
+    Tables: {
+      groups: {
+        Row: Group;
+        Insert: Omit<Group, 'id' | 'created_at'>;
+        Update: Partial<Omit<Group, 'id' | 'created_at'>>;
+      };
+      rooms: {
+        Row: Room;
+        Insert: Omit<Room, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<Room, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      songs: {
+        Row: Song;
+        Insert: Omit<Song, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<Song, 'id' | 'created_at' | 'updated_at'>>;
+      };
+      room_song_entries: {
+        Row: RoomSongEntry;
+        Insert: Omit<RoomSongEntry, 'id' | 'added_at'>;
+        Update: Partial<Omit<RoomSongEntry, 'id' | 'added_at'>>;
+      };
+      favorites: {
+        Row: Favorite;
+        Insert: Omit<Favorite, 'id' | 'created_at'>;
+        Update: Partial<Omit<Favorite, 'id' | 'created_at'>>;
+      };
+    };
+  };
+};
