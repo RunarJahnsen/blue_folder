@@ -44,15 +44,15 @@ export function RoomNew() {
 
     const { data, error: insertError } = await supabase
       .from('rooms')
-      .insert({
+      .insert([{
         group_id: groupId,
         title: title.trim(),
         date,
         status: 'planned',
         mode,
-      })
+      }])
       .select('id')
-      .single();
+      .single<{ id: string }>();
 
     setIsLoading(false);
 

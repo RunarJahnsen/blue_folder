@@ -28,20 +28,21 @@ export function RoomList() {
     setIsLoading(true);
     setError('');
 
-    supabase
-      .from('rooms')
-      .select('id, title, date, status, mode')
-      .eq('group_id', groupId)
-      .order('date', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) {
-          setError('Kunne ikke hente rom. Prøv igjen.');
-          setRooms([]);
-        } else if (data) {
-          setRooms(data as Room[]);
-        }
-      })
-      .finally(() => setIsLoading(false));
+    (async () => {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('id, title, date, status, mode')
+        .eq('group_id', groupId)
+        .order('date', { ascending: true });
+
+      if (error) {
+        setError('Kunne ikke hente rom. Prøv igjen.');
+        setRooms([]);
+      } else if (data) {
+        setRooms(data as Room[]);
+      }
+      setIsLoading(false);
+    })();
   }, [groupId]);
 
   const activeRooms = useMemo(() => rooms.filter((room) => room.status === 'active'), [rooms]);
