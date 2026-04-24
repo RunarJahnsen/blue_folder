@@ -5,7 +5,7 @@ export interface Group {
   created_at: string;
 }
 
-export interface Perm {
+export interface Folder {
   id: string;
   group_id: string;
   title: string;
@@ -28,10 +28,10 @@ export interface Song {
   updated_at: string;
 }
 
-export interface PermSongEntry {
+export interface FolderSongEntry {
   id: string;
   group_id: string;
-  perm_id: string;
+  folder_id: string;
   song_id: string;
   state: 'suggested' | 'queued' | 'current' | 'played' | 'removed';
   position?: number;
@@ -57,20 +57,20 @@ export type Database = {
         Insert: Omit<Group, 'id' | 'created_at'>;
         Update: Partial<Omit<Group, 'id' | 'created_at'>>;
       };
-      perms: {
-        Row: Perm;
-        Insert: Omit<Perm, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<Perm, 'id' | 'created_at' | 'updated_at'>>;
+      folders: {
+        Row: Folder;
+        Insert: Omit<Folder, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<Folder, 'id' | 'created_at' | 'updated_at'>>;
       };
       songs: {
         Row: Song;
         Insert: Omit<Song, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<Song, 'id' | 'created_at' | 'updated_at'>>;
       };
-      perm_song_entries: {
-        Row: PermSongEntry;
-        Insert: Omit<PermSongEntry, 'id' | 'added_at'>;
-        Update: Partial<Omit<PermSongEntry, 'id' | 'added_at'>>;
+      folder_song_entries: {
+        Row: FolderSongEntry;
+        Insert: Omit<FolderSongEntry, 'id' | 'added_at'>;
+        Update: Partial<Omit<FolderSongEntry, 'id' | 'added_at'>>;
       };
       favorites: {
         Row: Favorite;

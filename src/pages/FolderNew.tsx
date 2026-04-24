@@ -17,7 +17,7 @@ const MODE_OPTIONS = [
   { value: 'open', label: 'Åpent' },
 ] as const;
 
-export function PermNew() {
+export function FolderNew() {
   const { groupId } = useParams();
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
@@ -42,7 +42,7 @@ export function PermNew() {
 
     setIsLoading(true);
 
-    const permData: {
+    const folderData: {
       group_id: string;
       title: string;
       date: string;
@@ -57,8 +57,8 @@ export function PermNew() {
     };
 
     const { data, error: insertError } = await supabase
-      .from('perms')
-      .insert([permData] as any)
+      .from('folders')
+      .insert([folderData] as any)
       .select('id')
       .single<{ id: string }>();
 
@@ -69,7 +69,7 @@ export function PermNew() {
       return;
     }
 
-    navigate(`/${groupId}/perms/${data.id}`);
+    navigate(`/${groupId}/folders/${data.id}`);
   };
 
   return (

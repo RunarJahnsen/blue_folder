@@ -1,16 +1,16 @@
 import { Routes, Route } from 'react-router-dom';
 import { GroupAccess } from './pages/GroupAccess';
-import { PermList } from './pages/PermList';
-import { PermNew } from './pages/PermNew';
-import { PermView } from './pages/PermView';
+import { FolderList } from './pages/FolderList';
+import { FolderNew } from './pages/FolderNew';
+import { FolderView } from './pages/FolderView';
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<GroupAccess />} />
-      <Route path="/:groupId" element={<PermList />} />
-      <Route path="/:groupId/perms/new" element={<PermNew />} />
-      <Route path="/:groupId/perms/:permId" element={<PermView />} />
+      <Route path="/:groupId" element={<FolderList />} />
+      <Route path="/:groupId/folders/new" element={<FolderNew />} />
+      <Route path="/:groupId/folders/:folderId" element={<FolderView />} />
     </Routes>
   );
 }

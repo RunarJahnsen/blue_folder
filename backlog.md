@@ -1,4 +1,4 @@
-# Backlog — Blå perm
+# Backlog — Blå folder
 
 Prioritert etter vertikale slices. Hver slice er en komplett leveranse som går gjennom UI, data, logikk og (der relevant) sanntid.
 
@@ -10,12 +10,12 @@ Mål: Prosjektet er oppe på Vercel, koblet til Supabase, og en bruker kan taste
 
 ### Tasks
 
-- [x] Sett opp Supabase-skjema med alle fem tabeller (Group, Perm, Song, PermSongEntry, Favorite)
+- [x] Sett opp Supabase-skjema med alle fem tabeller (Group, Folder, Song, FolderSongEntry, Favorite)
 - [x] Legg til Row Level Security (deaktivert for nå, men strukturen er på plass)
 - [x] Definer TypeScript-typer manuelt i `src/lib/types.ts` basert på datamodellen
 - [x] Sett opp Supabase-klient i `src/lib/supabase.ts` med `createClient`
-- [x] Sett opp React Router med ruter for `/`, `/:groupId`, `/:groupId/perms/new`, `/:groupId/perms/:roomId`
-- [x] Legg til `vercel.json` med SPA-fallback så direktelenker til perm fungerer
+- [x] Sett opp React Router med ruter for `/`, `/:groupId`, `/:groupId/folders/new`, `/:groupId/folders/:roomId`
+- [x] Legg til `vercel.json` med SPA-fallback så direktelenker til folder fungerer
 - [x] Seed én test-group med access code i Supabase
 - [x] Bygg group access-side (`/`): inputfelt for access code, validering mot Supabase, redirect til `/{groupId}` ved treff
 - [x] Lagre `groupId` i `localStorage` så brukeren slipper å taste koden igjen
@@ -24,21 +24,21 @@ Mål: Prosjektet er oppe på Vercel, koblet til Supabase, og en bruker kan taste
 
 ---
 
-## Slice 2 — Perm-oversikt og opprettelse ✅
+## Slice 2 — Folder-oversikt og opprettelse ✅
 
-Mål: Brukeren kan se alle perm for sin group og opprette et ny perm.
+Mål: Brukeren kan se alle folder for sin group og opprette et ny folder.
 
 ### Tasks
 
-- [x] Bygg perm-oversiktsside (`/{groupId}`): vis perm delt i tre seksjoner (Aktive, Kommende, Tidligere)
-- [x] Perm-kort viser: tittel, dato, status-badge
-- [x] Bygg "Opprett rom"-side (`/{groupId}/perms/new`):
+- [x] Bygg folder-oversiktsside (`/{groupId}`): vis folder delt i tre seksjoner (Aktive, Kommende, Tidligere)
+- [x] Folder-kort viser: tittel, dato, status-badge
+- [x] Bygg "Opprett rom"-side (`/{groupId}/folders/new`):
   - Tittel (required)
   - Dato (required, native date input)
   - Mode: host_only | suggest | open (velges med radio/select)
   - Status settes til `planned` automatisk
-- [x] Lagre nytt perm i Supabase med korrekt `group_id`
-- [x] Redirect til perm-siden etter opprettelse
+- [x] Lagre nytt folder i Supabase med korrekt `group_id`
+- [x] Redirect til folder-siden etter opprettelse
 
 ### Akseptansekriterier
 - Tre seksjoner vises korrekt basert på `status`
@@ -48,15 +48,15 @@ Mål: Brukeren kan se alle perm for sin group og opprette et ny perm.
 
 ---
 
-## Slice 3 — Perm-siden (struktur og statisk data)
+## Slice 3 — Folder-siden (struktur og statisk data)
 
-Mål: Perm-siden viser all relevant informasjon hentet fra Supabase, uten sanntid ennå.
+Mål: Folder-siden viser all relevant informasjon hentet fra Supabase, uten sanntid ennå.
 
 ### Tasks
 
-- [ ] Bygg perm-side (`/{groupId}/perms/:roomId`):
+- [ ] Bygg folder-side (`/{groupId}/folders/:roomId`):
   - Header: tittel, dato, status-badge, mode
-  - Seksjon "Live nå": viser `current` PermSongEntry (sang + URL)
+  - Seksjon "Live nå": viser `current` FolderSongEntry (sang + URL)
   - Seksjon "Kø": viser alle `queued` entries i rekkefølge
   - Seksjon "Forslag": viser alle `suggested` entries (kun synlig i suggest-mode)
   - Seksjon "Spilt": viser alle `played` entries
@@ -82,7 +82,7 @@ Mål: Brukeren kan legge til sanger i permen via URL, med soft deduplicering.
   - Tittel-felt (skrives inn manuelt)
   - Sjekk om URL allerede finnes i group (soft deduplicering) — vis forslag om gjenbruk hvis ja
   - Opprett ny `Song` hvis URL ikke finnes fra før
-  - Opprett `PermSongEntry` med riktig state basert på perm mode:
+  - Opprett `FolderSongEntry` med riktig state basert på folder mode:
     - `host_only`: kun vert kan legge til → state `queued`
     - `suggest`: state `suggested`
     - `open`: state `queued`
@@ -105,9 +105,9 @@ Mål: Verten kan styre køen og flytte sanger mellom states.
 - [ ] Vert kan trykke "Spill neste":
   - Nåværende `current` → `played`
   - Neste `queued` (lavest position) → `current`
-  - `perm.current_queue_item_id` oppdateres
-- [ ] Vert kan sette perm til `active` (fra `planned`)
-- [ ] Vert kan sette perm til `completed` (fra `active`)
+  - `folder.current_queue_item_id` oppdateres
+- [ ] Vert kan sette folder til `active` (fra `planned`)
+- [ ] Vert kan sette folder til `completed` (fra `active`)
 - [ ] Vert-sjekk basert på `session_id` i `localStorage`
 - [ ] Vert-handlinger er ikke synlige for ikke-verter (i host_only og suggest)
 
@@ -126,13 +126,13 @@ Sanntid bygges inn her fordi kø-logikk og sanntid er to sider av samme sak — 
 
 ### Tasks
 
-- [ ] Sett opp Supabase Realtime-subscription på `perms` (filtrer på `perm_id`)
-- [ ] Sett opp Realtime-subscription på `perm_song_entries` (filtrer på `perm_id`)
+- [ ] Sett opp Supabase Realtime-subscription på `folders` (filtrer på `folder_id`)
+- [ ] Sett opp Realtime-subscription på `folder_song_entries` (filtrer på `folder_id`)
 - [ ] Oppdater UI automatisk når:
   - `current_queue_item_id` endres (ny aktiv sang)
   - Ny entry legges til i kø
   - Entry endrer state (f.eks. forslag godkjennes)
-  - Perm status endres
+  - Folder status endres
 - [ ] Håndter subscription cleanup ved unmount
 
 ### Akseptansekriterier
@@ -142,28 +142,28 @@ Sanntid bygges inn her fordi kø-logikk og sanntid er to sider av samme sak — 
 
 ---
 
-## Slice 5 — Historikk og kopiering av perm
+## Slice 5 — Historikk og kopiering av folder
 
-Mål: Brukeren kan se historikk fra avsluttede perm og bruke dem som utgangspunkt for nye.
+Mål: Brukeren kan se historikk fra avsluttede folder og bruke dem som utgangspunkt for nye.
 
 ### Tasks
 
-- [ ] Vis fullstendige "Spilt"-lister på completed perms
+- [ ] Vis fullstendige "Spilt"-lister på completed folders
 - [ ] Bygg "Kopier rom"-flyt i opprett-rom-siden:
   - Valg: Lag nytt fra scratch ELLER kopier eksisterende
-  - Hvis kopiering: vis liste over tidligere perm å velge fra
+  - Hvis kopiering: vis liste over tidligere folder å velge fra
   - Velg kopieringsstrategi:
     - `all` — kopier alle sanger (spilte + ikke spilte)
     - `played_only` — kopier kun spilte sanger
     - `remaining_only` — kopier kun sanger som ikke ble spilt
 - [ ] Implementer kopieringslogikk:
-  - Opprett nytt Perm med `planned`, ny dato, kopiert tittel som utgangspunkt
+  - Opprett nytt Folder med `planned`, ny dato, kopiert tittel som utgangspunkt
   - Kopier valgte RoomSongEntries som `queued` med bevart `position`
   - Ikke kopier: gammel status, current, suggestions, timestamps
 
 ### Akseptansekriterier
 - Alle tre kopieringsstrategier fungerer korrekt
-- Nytt perm starter alltid som `planned`
+- Nytt folder starter alltid som `planned`
 - Kopiering tar ikke med live-tilstand fra kildepermen
 
 ---
@@ -177,7 +177,7 @@ Mål: Gruppa kan lagre favoritter og bruke dem når de legger til sanger.
 - [ ] Vis "Legg til favoritt"-knapp på sanger i kø og historikk
 - [ ] Lagre/fjern favoritter i Supabase (toggle)
 - [ ] Vis favoritt-tab/seksjon i "Legg til sang"-modalen
-- [ ] Fra favoritter: legg rett i kø eller forslag (avhengig av perm mode)
+- [ ] Fra favoritter: legg rett i kø eller forslag (avhengig av folder mode)
 - [ ] Vis visuell indikasjon på sanger som allerede er favoritter
 
 ### Akseptansekriterier
