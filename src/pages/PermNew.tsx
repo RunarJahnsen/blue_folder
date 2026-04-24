@@ -58,7 +58,7 @@ export function PermNew() {
 
     const { data, error: insertError } = await supabase
       .from('perms')
-      .insert(permData)
+      .insert([permData] as any)
       .select('id')
       .single<{ id: string }>();
 
