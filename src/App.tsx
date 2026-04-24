@@ -1,16 +1,16 @@
 import { Routes, Route } from 'react-router-dom';
 import { GroupAccess } from './pages/GroupAccess';
-import { RoomList } from './pages/RoomList';
-import { RoomNew } from './pages/RoomNew';
-import { RoomView } from './pages/RoomView';
+import { PermList } from './pages/PermList';
+import { PermNew } from './pages/PermNew';
+import { PermView } from './pages/PermView';
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<GroupAccess />} />
-      <Route path="/:groupId" element={<RoomList />} />
-      <Route path="/:groupId/rooms/new" element={<RoomNew />} />
-      <Route path="/:groupId/rooms/:roomId" element={<RoomView />} />
+      <Route path="/:groupId" element={<PermList />} />
+      <Route path="/:groupId/perms/new" element={<PermNew />} />
+      <Route path="/:groupId/perms/:permId" element={<PermView />} />
     </Routes>
   );
 }

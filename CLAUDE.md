@@ -4,7 +4,7 @@
 
 En mobilvennlig webapp for digital allsang. En gruppe møtes fysisk og synger sammen. Appen løser problemet med å få alle til å finne samme sang, i samme versjon, i riktig rekkefølge — uten at folk må lete hver for seg.
 
-Kjerneverdien: gruppen samles i et felles digitalt rom, ser samme sang samtidig i sanntid, bygger en delt kø, og kan gjenbruke sanger og oppsett fra tidligere samlinger.
+Kjerneverdien: gruppen samles i en felles digital perm, ser samme sang samtidig i sanntid, bygger en delt kø, og kan gjenbruke sanger og oppsett fra tidligere samlinger.
 
 ---
 
@@ -30,7 +30,7 @@ Disse begrepene brukes konsekvent i kode, kommentarer og filnavn:
 ### Group
 Øverste nivå. Representerer én vennegjeng eller fast gruppe. Tilgang styres med en enkel `access_code`. All data tilhører en group. Ingen brukerlogin i MVP.
 
-### Room
+### Perm
 En konkret allsangsamling / kveld / hendelse. Har tittel, dato og status. Brukes til planlegging før, styring under, og historikk etter en samling.
 
 Status: `planned` | `active` | `completed`
@@ -43,8 +43,8 @@ Mode (hvem kan legge til sanger):
 ### Song
 Den minste gjenbrukbare enheten. Har tittel og URL til en konkret versjon av sangen (f.eks. en Genius-side). Tilhører en group.
 
-### RoomSongEntry
-Representerer én sang inne i ett spesifikt rom. Har en `state` som styrer flyten:
+### PermSongEntry
+Representerer én sang inne i én spesifikk perm. Har en `state` som styrer flyten:
 
 `suggested` → `queued` → `current` → `played`
 
@@ -61,19 +61,19 @@ Felles for hele gruppa (ikke personlig i MVP). Kobler en group til en song.
 Group
   id, name, access_code, created_at
 
-Room
+Perm
   id, group_id, title, date
   status: planned | active | completed
   mode: host_only | suggest | open
-  current_queue_item_id (FK → RoomSongEntry)
+  current_queue_item_id (FK → PermSongEntry)
   join_code, created_at, updated_at
 
 Song
   id, group_id, title, url, source_label
   created_at, updated_at
 
-RoomSongEntry
-  id, group_id, room_id, song_id
+PermSongEntry
+  id, group_id, perm_id, song_id
   state: suggested | queued | current | played | removed
   position, added_by_session_id
   added_at, started_at, played_at, removed_at
@@ -104,12 +104,12 @@ Alle tabeller har `group_id`. Dette er bevisst — gjør fremtidig multi-group-s
 
 ### Sanntid
 - Sanntid er en kjernefeature, ikke pynt
-- Bruk Supabase Realtime-subscriptions på `rooms` og `room_song_entries`
-- Alle klienter i et rom skal automatisk oppdateres når: aktiv sang endres, ny sang legges til, forslag godkjennes, romstatus endres
+- Bruk Supabase Realtime-subscriptions på `perms` og `perm_song_entries`
+- Alle klienter i en perm skal automatisk oppdateres når: aktiv sang endres, ny sang legges til, forslag godkjennes, permstatus endres
 
 ### Datamodell
 - Alltid `group_id` på alle records — ingen unntak
-- Bruk `RoomSongEntry.state` for å skille mellom suggested/queued/current/played/removed
+- Bruk `PermSongEntry.state` for å skille mellom suggested/queued/current/played/removed
 - Soft deduplicering: sjekk om URL finnes i group før ny Song opprettes
 
 ### Vertsstyring uten login
@@ -139,11 +139,11 @@ src/
   App.tsx                 # Router-oppsett
   pages/
     GroupAccess.tsx       # Group access / innlogging med kode
-    RoomList.tsx          # Room-oversikt for en group
+    RoomList.tsx          # Perm-oversikt for en group
     RoomNew.tsx           # Opprett rom
-    RoomView.tsx          # Room-siden (hoved-UI)
+    RoomView.tsx          # Perm-siden (hoved-UI)
   components/
-    room/                 # Room-spesifikke komponenter
+    perm/                 # Perm-spesifikke komponenter
     song/                 # Song/legg-til-komponenter
     ui/                   # shadcn-komponenter (auto-generert)
   lib/
@@ -151,7 +151,7 @@ src/
     types.ts              # TypeScript-typer fra datamodellen
     utils.ts
   hooks/
-    useRoom.ts            # Realtime-hook for room-data
+    usePerm.ts            # Realtime-hook for perm-data
     useSession.ts         # session_id fra localStorage
 ```
 
