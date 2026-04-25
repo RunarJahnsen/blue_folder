@@ -5,7 +5,12 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ["'Geist Variable'", "system-ui", "'Segoe UI'", "Roboto", "sans-serif"],
+        heading: ["'Geist Variable'", "system-ui", "'Segoe UI'", "Roboto", "sans-serif"],
+      },
+    },
   },
   plugins: [],
 }
