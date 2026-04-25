@@ -21,7 +21,7 @@ interface AddSongModalProps {
   onSongAdded: () => void;
 }
 
-type Step = 'input' | 'confirm';
+type Step = 'input' | 'url-match' | 'title-match';
 
 export function AddSongModal({
   isOpen,
@@ -47,6 +47,10 @@ export function AddSongModal({
     return u.startsWith('http://') || u.startsWith('https://');
   };
 
+  const truncateUrl = (u: string, maxLength: number = 50) => {
+    return u.length > maxLength ? u.slice(0, 47) + '...' : u;
+  };
+
   const handleCheckUrl = async () => {
     if (!url.trim() || !title.trim()) {
       setError('Både URL og tittel er påkrevd.');
@@ -70,9 +74,26 @@ export function AddSongModal({
 
       if (existingData) {
         setExistingSong(existingData as Song);
-        setStep('confirm');
+        setStep('url-match');
       } else {
-        await createNewSongAndEntry();
+        // URL not found, check if title exists
+        try {
+          const { data: existingByTitle } = await supabase
+            .from('songs')
+            .select('*')
+            .eq('group_id', groupId)
+            .ilike('title', title)
+            .single();
+
+          if (existingByTitle) {
+            setExistingSong(existingByTitle as Song);
+            setStep('title-match');
+          } else {
+            await createNewSongAndEntry();
+          }
+        } catch {
+          await createNewSongAndEntry();
+        }
       }
     } catch {
       await createNewSongAndEntry();
@@ -206,10 +227,36 @@ export function AddSongModal({
               </Button>
             </div>
           </div>
-        ) : (
+        ) : step === 'url-match' ? (
           <div className="space-y-4 mt-6">
             <div className="p-3 bg-sky-50 rounded-lg text-sm text-sky-900">
               Denne URL finnes allerede som <strong>{existingSong?.title}</strong>
+            </div>
+            {error && <div className="text-sm text-red-600">{error}</div>}
+            <div className="flex gap-2 justify-end pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setStep('input')}
+                disabled={isLoading}
+              >
+                Avbryt
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleAddNew}
+                disabled={isLoading}
+              >
+                Legg til ny
+              </Button>
+              <Button onClick={handleUseExisting} disabled={isLoading}>
+                Bruk denne
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 mt-6">
+            <div className="p-3 bg-sky-50 rounded-lg text-sm text-sky-900">
+              Vi fant en sang med samme tittel: <strong>{existingSong?.title}</strong> ({truncateUrl(existingSong?.url || '')})
             </div>
             {error && <div className="text-sm text-red-600">{error}</div>}
             <div className="flex gap-2 justify-end pt-4">
