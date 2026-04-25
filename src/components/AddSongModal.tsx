@@ -86,7 +86,8 @@ export function AddSongModal({
             .select('*')
             .eq('group_id', groupId)
             .ilike('title', title)
-            .single();
+            .limit(1)
+            .maybeSingle();
 
           console.log('Supabase tittel-søk returnerte:', existingByTitle);
           if (existingByTitle) {
