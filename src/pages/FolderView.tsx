@@ -151,11 +151,12 @@ export function FolderView() {
               <h1 className="text-3xl font-semibold text-slate-900">{folder.title}</h1>
               <p className="text-sm text-slate-600">{folder.date}</p>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               {renderBadge(
                 folder.status.charAt(0).toUpperCase() + folder.status.slice(1),
                 getStatusBadgeColor(folder.status)
               )}
+              <span className="text-slate-400">·</span>
               {renderBadge(folder.mode.replace('_', ' '))}
             </div>
           </div>
