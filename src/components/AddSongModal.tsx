@@ -73,11 +73,14 @@ export function AddSongModal({
         .single();
 
       if (existingData) {
+        console.log('URL-sjekk: URL finnes allerede');
         setExistingSong(existingData as Song);
         setStep('url-match');
       } else {
+        console.log('URL-sjekk: URL finnes ikke, søker etter tittel');
         // URL not found, check if title exists
         try {
+          console.log('Søker etter tittel:', title);
           const { data: existingByTitle } = await supabase
             .from('songs')
             .select('*')
@@ -85,13 +88,15 @@ export function AddSongModal({
             .ilike('title', title)
             .single();
 
+          console.log('Supabase tittel-søk returnerte:', existingByTitle);
           if (existingByTitle) {
             setExistingSong(existingByTitle as Song);
             setStep('title-match');
           } else {
             await createNewSongAndEntry();
           }
-        } catch {
+        } catch (err) {
+          console.log('Tittel-søk error (forventes hvis ikke funnet):', err);
           await createNewSongAndEntry();
         }
       }
