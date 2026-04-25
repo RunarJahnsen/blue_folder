@@ -164,7 +164,7 @@ export function AddSongModal({
 
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
-      <SheetContent>
+      <SheetContent side="bottom">
         <SheetHeader>
           <SheetTitle>Legg til sang</SheetTitle>
           <SheetDescription>Legg til ny sang til permen</SheetDescription>
