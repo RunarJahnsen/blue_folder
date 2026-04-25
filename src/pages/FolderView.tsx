@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Folder, FolderSongEntry, Song } from '@/lib/types';
 import {
   Card,
   CardContent,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { AddSongModal } from '@/components/AddSongModal';
 
 interface SongWithEntry extends FolderSongEntry {
   songs?: Song;
@@ -17,6 +20,7 @@ export function FolderView() {
   const [entries, setEntries] = useState<SongWithEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
 
   useEffect(() => {
     if (!groupId || !folderId) {
@@ -86,6 +90,31 @@ export function FolderView() {
     [entries]
   );
 
+  const maxPosition = useMemo(() => {
+    const positions = queuedEntries.map((e) => e.position || 0);
+    return positions.length > 0 ? Math.max(...positions) : 0;
+  }, [queuedEntries]);
+
+  const handleSongAdded = () => {
+    if (!groupId || !folderId) return;
+    (async () => {
+      try {
+        const { data: entriesData } = await supabase
+          .from('folder_song_entries')
+          .select('id, folder_id, song_id, state, position, played_at, songs(id, title, url)')
+          .eq('folder_id', folderId)
+          .order('state', { ascending: true })
+          .order('position', { ascending: true });
+
+        if (entriesData) {
+          setEntries(entriesData as SongWithEntry[]);
+        }
+      } catch (err) {
+        console.error('Failed to refresh entries:', err);
+      }
+    })();
+  };
+
   const renderSongLink = (entry: SongWithEntry) => {
     const song = entry.songs as any;
     if (!song || !song.url) return song?.title || 'Ukjent sang';
@@ -152,12 +181,13 @@ export function FolderView() {
               <p className="text-sm text-slate-600">{folder.date}</p>
             </div>
             <div className="flex gap-2 flex-wrap items-center">
-              {renderBadge(
-                folder.status.charAt(0).toUpperCase() + folder.status.slice(1),
-                getStatusBadgeColor(folder.status)
-              )}
-              <span className="text-slate-400"> · </span>
-              {renderBadge(folder.mode.replace('_', ' '))}
+              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(folder.status)}`}>
+                {folder.status.charAt(0).toUpperCase() + folder.status.slice(1)}
+              </span>
+              <span className="text-slate-400 mx-1">{" · "}</span>
+              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                {folder.mode.replace('_', ' ')}
+              </span>
             </div>
           </div>
         </div>
@@ -263,6 +293,24 @@ export function FolderView() {
           )}
         </div>
       </div>
+
+      {/* Floating Action Button */}
+      <Button
+        onClick={() => setIsAddSongModalOpen(true)}
+        className="fixed bottom-6 right-6 rounded-full h-14 w-14 p-0 shadow-lg"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
+
+      <AddSongModal
+        isOpen={isAddSongModalOpen}
+        onClose={() => setIsAddSongModalOpen(false)}
+        groupId={groupId || ''}
+        folderId={folderId || ''}
+        folderMode={folder?.mode || 'open'}
+        maxPosition={maxPosition}
+        onSongAdded={handleSongAdded}
+      />
     </div>
   );
 }
