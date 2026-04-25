@@ -156,7 +156,7 @@ export function FolderView() {
                 folder.status.charAt(0).toUpperCase() + folder.status.slice(1),
                 getStatusBadgeColor(folder.status)
               )}
-              <span className="text-slate-400">·</span>
+              <span className="text-slate-400"> · </span>
               {renderBadge(folder.mode.replace('_', ' '))}
             </div>
           </div>
