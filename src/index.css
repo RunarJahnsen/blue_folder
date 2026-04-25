@@ -1,7 +1,6 @@
 @import "tw-animate-css";
 @import "@fontsource-variable/geist";
 
-@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
