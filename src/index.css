@@ -1,5 +1,4 @@
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
 @tailwind base;
@@ -214,8 +213,14 @@ code {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;}
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
   body {
-    @apply bg-background text-foreground;}
+    background-color: var(--background);
+    color: var(--foreground);
+  }
   html {
-    @apply font-sans;}}
+    font-family: 'Geist Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+  }
+}
