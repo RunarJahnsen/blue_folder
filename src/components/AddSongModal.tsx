@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { FolderSongEntry, Song } from '@/lib/types';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -31,6 +32,10 @@ export function AddSongModal({
   maxPosition,
   onSongAdded,
 }: AddSongModalProps) {
+  useEffect(() => {
+    console.log('AddSongModal: isOpen changed to', isOpen);
+  }, [isOpen]);
+
   const [step, setStep] = useState<Step>('input');
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -142,6 +147,7 @@ export function AddSongModal({
   };
 
   const handleClose = () => {
+    console.log('AddSongModal: closing modal');
     setStep('input');
     setUrl('');
     setTitle('');
@@ -150,11 +156,18 @@ export function AddSongModal({
     onClose();
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose();
+    }
+  };
+
   return (
-    <Sheet open={isOpen} onOpenChange={handleClose}>
+    <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Legg til sang</SheetTitle>
+          <SheetDescription>Legg til ny sang til permen</SheetDescription>
         </SheetHeader>
 
         {step === 'input' ? (
