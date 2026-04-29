@@ -55,7 +55,7 @@ export function AddSongModal({
         .from('favorites')
         .select('id, song_id, group_id, created_at, songs(id, title, url)')
         .eq('group_id', groupId);
-      if (data) setGroupFavorites(data as FavoriteWithSong[]);
+      if (data) setGroupFavorites(data as unknown as FavoriteWithSong[]);
       setIsFetchingFavorites(false);
     })();
   }, [activeTab, groupId]);

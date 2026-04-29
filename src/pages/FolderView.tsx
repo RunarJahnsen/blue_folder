@@ -66,7 +66,7 @@ export function FolderView() {
           setError('Kunne ikke hente sanger.');
           setEntries([]);
         } else if (entriesData) {
-          setEntries(entriesData as SongWithEntry[]);
+          setEntries(entriesData as unknown as SongWithEntry[]);
         }
 
         const { data: favoritesData } = await supabase
@@ -107,8 +107,8 @@ export function FolderView() {
             .single();
           if (data) {
             setEntries((prev) => {
-              if (prev.some((e) => e.id === (data as SongWithEntry).id)) return prev;
-              return [...prev, data as SongWithEntry];
+              if (prev.some((e) => e.id === (data as unknown as SongWithEntry).id)) return prev;
+              return [...prev, data as unknown as SongWithEntry];
             });
           }
         }
@@ -373,7 +373,7 @@ export function FolderView() {
           .order('position', { ascending: true });
 
         if (entriesData) {
-          setEntries(entriesData as SongWithEntry[]);
+          setEntries(entriesData as unknown as SongWithEntry[]);
         }
       } catch (err) {
         console.error('Failed to refresh entries:', err);
