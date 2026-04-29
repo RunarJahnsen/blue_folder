@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import type { Folder } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import type { Folder } from '@/lib/types';
 import {
   Card,
   CardHeader,
@@ -49,21 +49,35 @@ export function FolderList() {
   const upcomingFolders = useMemo(() => folders.filter((folder) => folder.status === 'planned'), [folders]);
   const previousFolders = useMemo(() => folders.filter((folder) => folder.status === 'completed'), [folders]);
 
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'planned':
+        return 'bg-slate-200 text-slate-800';
+      case 'active':
+        return 'bg-sky-100 text-sky-700';
+      case 'completed':
+        return 'bg-green-200 text-green-800';
+      default:
+        return 'bg-slate-100 text-slate-700';
+    }
+  };
+
   const renderFolderCard = (folder: Folder) => (
-    <Card key={folder.id} className="border border-slate-200 p-4 shadow-sm">
+    <Card
+      key={folder.id}
+      className="cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => navigate(`/${groupId}/folders/${folder.id}`)}
+    >
       <CardHeader>
-        <CardTitle>{folder.title}</CardTitle>
+        <CardTitle className="font-semibold">{folder.title}</CardTitle>
         <CardDescription>
           {folder.date} · {folder.mode.replace('_', ' ')}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between gap-4 text-sm text-slate-600">
-          <span>Status: {folder.status}</span>
-          <Button variant="secondary" size="sm" onClick={() => navigate(`/${groupId}/folders/${folder.id}`)}>
-            Åpne
-          </Button>
-        </div>
+        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(folder.status)}`}>
+          {folder.status.charAt(0).toUpperCase() + folder.status.slice(1)}
+        </span>
       </CardContent>
     </Card>
   );
@@ -71,25 +85,30 @@ export function FolderList() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6">
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
-        <div className="flex flex-col gap-4 rounded-3xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-sky-700">Blå perm</p>
+            <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
             <h1 className="text-2xl font-semibold text-slate-900">Permoversikt</h1>
             <p className="max-w-2xl text-sm text-slate-600">
               Se alle permer i gruppen og opprett en ny samling.
             </p>
           </div>
-          <Button onClick={() => navigate(`/${groupId}/folders/new`)}>
-            Opprett perm
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate(`/${groupId}/songs`)}>
+              Sanger
+            </Button>
+            <Button onClick={() => navigate(`/${groupId}/folders/new`)}>
+              Opprett perm
+            </Button>
+          </div>
         </div>
 
         {error ? (
-          <div className="rounded-3xl bg-red-50 p-4 text-sm text-red-800">{error}</div>
+          <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error}</div>
         ) : null}
 
         {isLoading ? (
-          <div className="rounded-3xl bg-white p-6 text-slate-700 shadow-sm">Henter permer…</div>
+          <div className="rounded-2xl bg-white p-6 text-slate-700 shadow-sm">Henter permer…</div>
         ) : (
           <div className="grid gap-6">
             <section className="space-y-4">
@@ -100,8 +119,8 @@ export function FolderList() {
               {activeFolders.length > 0 ? (
                 <div className="grid gap-4">{activeFolders.map(renderFolderCard)}</div>
               ) : (
-                <Card className="border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-600">
-                  Ingen aktive permer ennå.
+                <Card className="bg-slate-50 text-slate-600">
+                  <CardContent>Ingen aktive permer ennå.</CardContent>
                 </Card>
               )}
             </section>
@@ -114,8 +133,8 @@ export function FolderList() {
               {upcomingFolders.length > 0 ? (
                 <div className="grid gap-4">{upcomingFolders.map(renderFolderCard)}</div>
               ) : (
-                <Card className="border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-600">
-                  Ingen kommende permer ennå.
+                <Card className="bg-slate-50 text-slate-600">
+                  <CardContent>Ingen kommende permer ennå.</CardContent>
                 </Card>
               )}
             </section>
@@ -128,8 +147,8 @@ export function FolderList() {
               {previousFolders.length > 0 ? (
                 <div className="grid gap-4">{previousFolders.map(renderFolderCard)}</div>
               ) : (
-                <Card className="border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-600">
-                  Ingen tidligere permer ennå.
+                <Card className="bg-slate-50 text-slate-600">
+                  <CardContent>Ingen tidligere permer ennå.</CardContent>
                 </Card>
               )}
             </section>

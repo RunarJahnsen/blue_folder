@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { FolderSongEntry, Song } from '@/lib/types';
+
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+import type { Favorite, Song } from '@/lib/types';
 import {
   Sheet,
   SheetContent,
@@ -22,6 +24,7 @@ interface AddSongModalProps {
 }
 
 type Step = 'input' | 'url-match' | 'title-match';
+type FavoriteWithSong = Favorite & { songs: Song };
 
 export function AddSongModal({
   isOpen,
@@ -32,16 +35,30 @@ export function AddSongModal({
   maxPosition,
   onSongAdded,
 }: AddSongModalProps) {
-  useEffect(() => {
-    console.log('AddSongModal: isOpen changed to', isOpen);
-  }, [isOpen]);
+  const [activeTab, setActiveTab] = useState<'url' | 'favorites'>('url');
+  const [groupFavorites, setGroupFavorites] = useState<FavoriteWithSong[]>([]);
+  const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
 
   const [step, setStep] = useState<Step>('input');
   const [url, setUrl] = useState('');
+  const [artist, setArtist] = useState('');
   const [title, setTitle] = useState('');
   const [existingSong, setExistingSong] = useState<Song | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'favorites' || !groupId) return;
+    setIsFetchingFavorites(true);
+    (async () => {
+      const { data } = await supabase
+        .from('favorites')
+        .select('id, song_id, group_id, created_at, songs(id, title, url)')
+        .eq('group_id', groupId);
+      if (data) setGroupFavorites(data as FavoriteWithSong[]);
+      setIsFetchingFavorites(false);
+    })();
+  }, [activeTab, groupId]);
 
   const validateUrl = (u: string) => {
     return u.startsWith('http://') || u.startsWith('https://');
@@ -73,14 +90,10 @@ export function AddSongModal({
         .single();
 
       if (existingData) {
-        console.log('URL-sjekk: URL finnes allerede');
         setExistingSong(existingData as Song);
         setStep('url-match');
       } else {
-        console.log('URL-sjekk: URL finnes ikke, søker etter tittel');
-        // URL not found, check if title exists
         try {
-          console.log('Søker etter tittel:', title);
           const { data: existingByTitle } = await supabase
             .from('songs')
             .select('*')
@@ -89,7 +102,6 @@ export function AddSongModal({
             .limit(1)
             .maybeSingle();
 
-          console.log('Supabase tittel-søk returnerte:', existingByTitle);
           if (existingByTitle) {
             setExistingSong(existingByTitle as Song);
             setStep('title-match');
@@ -97,7 +109,6 @@ export function AddSongModal({
             await createNewSongAndEntry();
           }
         } catch (err) {
-          console.log('Tittel-søk error (forventes hvis ikke funnet):', err);
           await createNewSongAndEntry();
         }
       }
@@ -116,7 +127,8 @@ export function AddSongModal({
           group_id: groupId,
           title,
           url,
-        })
+          ...(artist.trim() ? { artist: artist.trim() } : {}),
+        } as any)
         .select()
         .single<Song>();
 
@@ -124,6 +136,11 @@ export function AddSongModal({
         setError('Kunne ikke opprett sang.');
         return;
       }
+
+      supabase.functions.invoke('fetch-song-content', {
+        body: { url: newSong.url, song_id: newSong.id },
+        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+      }).then((res) => console.log('Edge Function response:', res)).catch((err) => console.error('Edge Function error:', err));
 
       await createFolderSongEntry(newSong.id);
     } catch {
@@ -133,10 +150,8 @@ export function AddSongModal({
 
   const createFolderSongEntry = async (songId: string) => {
     try {
-      const state =
-        folderMode === 'suggest' ? 'suggested' : 'queued';
-      const position =
-        folderMode === 'suggest' ? undefined : maxPosition + 1;
+      const state = folderMode === 'suggest' ? 'suggested' : 'queued';
+      const position = folderMode === 'suggest' ? undefined : maxPosition + 1;
 
       const { error: entryError } = await supabase
         .from('folder_song_entries')
@@ -146,7 +161,7 @@ export function AddSongModal({
           song_id: songId,
           state,
           position,
-        });
+        } as any);
 
       if (entryError) {
         setError('Kunne ikke legge til sang i permen.');
@@ -174,9 +189,11 @@ export function AddSongModal({
   };
 
   const handleClose = () => {
-    console.log('AddSongModal: closing modal');
+    setActiveTab('url');
+    setGroupFavorites([]);
     setStep('input');
     setUrl('');
+    setArtist('');
     setTitle('');
     setExistingSong(null);
     setError('');
@@ -184,9 +201,7 @@ export function AddSongModal({
   };
 
   const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      handleClose();
-    }
+    if (!open) handleClose();
   };
 
   return (
@@ -197,93 +212,134 @@ export function AddSongModal({
           <SheetDescription>Legg til ny sang til permen</SheetDescription>
         </SheetHeader>
 
-        {step === 'input' ? (
-          <div className="space-y-4 mt-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                URL
-              </label>
-              <Input
-                type="text"
-                placeholder="https://genius.com/..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Tittel
-              </label>
-              <Input
-                type="text"
-                placeholder="Sangnavn"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            {error && <div className="text-sm text-red-600">{error}</div>}
-            <div className="flex gap-2 justify-end pt-4">
-              <Button variant="outline" onClick={handleClose} disabled={isLoading}>
-                Avbryt
-              </Button>
-              <Button onClick={handleCheckUrl} disabled={isLoading}>
-                {isLoading ? 'Sjekker...' : 'Legg til'}
-              </Button>
-            </div>
-          </div>
-        ) : step === 'url-match' ? (
-          <div className="space-y-4 mt-6">
-            <div className="p-3 bg-sky-50 rounded-lg text-sm text-sky-900">
-              Denne URL finnes allerede som <strong>{existingSong?.title}</strong>
-            </div>
-            {error && <div className="text-sm text-red-600">{error}</div>}
-            <div className="flex gap-2 justify-end pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setStep('input')}
-                disabled={isLoading}
-              >
-                Avbryt
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleAddNew}
-                disabled={isLoading}
-              >
-                Legg til ny
-              </Button>
-              <Button onClick={handleUseExisting} disabled={isLoading}>
-                Bruk denne
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 mt-6">
-            <div className="p-3 bg-sky-50 rounded-lg text-sm text-sky-900">
-              Vi fant en sang med samme tittel: <strong>{existingSong?.title}</strong> ({truncateUrl(existingSong?.url || '')})
-            </div>
-            {error && <div className="text-sm text-red-600">{error}</div>}
-            <div className="flex gap-2 justify-end pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setStep('input')}
-                disabled={isLoading}
-              >
-                Avbryt
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleAddNew}
-                disabled={isLoading}
-              >
-                Legg til ny
-              </Button>
-              <Button onClick={handleUseExisting} disabled={isLoading}>
-                Bruk denne
-              </Button>
-            </div>
+        {/* Tab toggle */}
+        <div className="flex gap-2 mt-4">
+          <Button
+            type="button"
+            size="sm"
+            variant={activeTab === 'url' ? 'default' : 'outline'}
+            onClick={() => { setActiveTab('url'); setError(''); }}
+          >
+            Legg til URL
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={activeTab === 'favorites' ? 'default' : 'outline'}
+            onClick={() => { setActiveTab('favorites'); setError(''); }}
+          >
+            Favoritter
+          </Button>
+        </div>
+
+        {/* URL tab */}
+        {activeTab === 'url' && (
+          <>
+            {step === 'input' ? (
+              <div className="space-y-4 mt-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">URL</label>
+                  <Input
+                    type="text"
+                    placeholder="https://genius.com/..."
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Artist <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+                  <Input
+                    type="text"
+                    placeholder="Artistnavn"
+                    value={artist}
+                    onChange={(e) => setArtist(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Tittel</label>
+                  <Input
+                    type="text"
+                    placeholder="Sangnavn"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {error && <div className="text-sm text-red-600">{error}</div>}
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button variant="outline" onClick={handleClose} disabled={isLoading}>
+                    Avbryt
+                  </Button>
+                  <Button onClick={handleCheckUrl} disabled={isLoading}>
+                    {isLoading ? 'Sjekker...' : 'Legg til'}
+                  </Button>
+                </div>
+              </div>
+            ) : step === 'url-match' ? (
+              <div className="space-y-4 mt-6">
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-900">
+                  Denne URL finnes allerede som <strong>{existingSong?.title}</strong>
+                </div>
+                {error && <div className="text-sm text-red-600">{error}</div>}
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button variant="outline" onClick={() => setStep('input')} disabled={isLoading}>
+                    Avbryt
+                  </Button>
+                  <Button variant="outline" onClick={handleAddNew} disabled={isLoading}>
+                    Legg til ny
+                  </Button>
+                  <Button onClick={handleUseExisting} disabled={isLoading}>
+                    Bruk denne
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 mt-6">
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-900">
+                  Vi fant en sang med samme tittel: <strong>{existingSong?.title}</strong> ({truncateUrl(existingSong?.url || '')})
+                </div>
+                {error && <div className="text-sm text-red-600">{error}</div>}
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button variant="outline" onClick={() => setStep('input')} disabled={isLoading}>
+                    Avbryt
+                  </Button>
+                  <Button variant="outline" onClick={handleAddNew} disabled={isLoading}>
+                    Legg til ny
+                  </Button>
+                  <Button onClick={handleUseExisting} disabled={isLoading}>
+                    Bruk denne
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Favorites tab */}
+        {activeTab === 'favorites' && (
+          <div className="mt-6">
+            {isFetchingFavorites ? (
+              <p className="text-sm text-slate-500">Henter favoritter…</p>
+            ) : groupFavorites.length === 0 ? (
+              <p className="text-sm text-slate-500">Ingen favoritter ennå.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                {groupFavorites.map((fav) => (
+                  <button
+                    key={fav.id}
+                    type="button"
+                    onClick={() => createFolderSongEntry(fav.songs.id)}
+                    className="w-full text-left border-0 bg-transparent px-0 py-3 hover:opacity-70 transition-opacity"
+                  >
+                    <p className="text-sm font-medium text-slate-900">{fav.songs.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{truncateUrl(fav.songs.url)}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {error && <div className="text-sm text-red-600 mt-3">{error}</div>}
           </div>
         )}
       </SheetContent>

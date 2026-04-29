@@ -6,6 +6,12 @@ export default {
   ],
   theme: {
     extend: {
+      colors: {
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+      },
       fontFamily: {
         sans: ["'Geist Variable'", "system-ui", "'Segoe UI'", "Roboto", "sans-serif"],
         heading: ["'Geist Variable'", "system-ui", "'Segoe UI'", "Roboto", "sans-serif"],

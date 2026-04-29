@@ -40,39 +40,44 @@ export function GroupAccess() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Blå perm</CardTitle>
-          <CardDescription>
-            Skriv inn tilgangskoden for å komme inn i gruppen din
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Input
-                type="text"
-                placeholder="Tilgangskode"
-                value={accessCode}
-                onChange={(e) => setAccessCode(e.target.value)}
-                disabled={isLoading}
-                className="text-center text-lg"
-              />
-            </div>
-            {error && (
-              <p className="text-sm text-red-600 text-center">{error}</p>
-            )}
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading || !accessCode.trim()}
-            >
-              {isLoading ? 'Sjekker...' : 'Kom inn'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-semibold text-primary">Blå perm</h1>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-semibold">Velkommen</CardTitle>
+            <CardDescription>
+              Skriv inn tilgangskoden for å komme inn i gruppen din
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Input
+                  type="text"
+                  placeholder="Tilgangskode"
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value)}
+                  disabled={isLoading}
+                  className="text-center text-lg"
+                />
+              </div>
+              {error && (
+                <p className="text-sm text-red-600 text-center">{error}</p>
+              )}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || !accessCode.trim()}
+              >
+                {isLoading ? 'Sjekker...' : 'Kom inn'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

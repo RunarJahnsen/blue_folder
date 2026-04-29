@@ -13,6 +13,7 @@ export interface Folder {
   status: 'planned' | 'active' | 'completed';
   mode: 'host_only' | 'suggest' | 'open';
   current_queue_item_id?: string;
+  host_session_id?: string;
   join_code?: string;
   created_at: string;
   updated_at: string;
@@ -22,7 +23,9 @@ export interface Song {
   id: string;
   group_id: string;
   title: string;
+  artist?: string;
   url: string;
+  content?: string;
   source_label?: string;
   created_at: string;
   updated_at: string;
@@ -65,7 +68,7 @@ export type Database = {
       songs: {
         Row: Song;
         Insert: Omit<Song, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<Song, 'id' | 'created_at' | 'updated_at'>>;
+        Update: Partial<Omit<Song, 'id' | 'created_at' | 'updated_at'>> & { content?: string | null };
       };
       folder_song_entries: {
         Row: FolderSongEntry;
