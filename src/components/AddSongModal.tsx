@@ -61,7 +61,7 @@ export function AddSongModal({
     (async () => {
       const { data } = await supabase
         .from('favorites')
-        .select('id, song_id, group_id, created_at, songs(id, title, artist, url)')
+        .select('id, song_id, group_id, created_at, songs(id, title, artist, url, content)')
         .eq('group_id', groupId);
       if (data) setGroupFavorites(data as unknown as FavoriteWithSong[]);
       setIsFetchingFavorites(false);
@@ -280,8 +280,8 @@ export function AddSongModal({
     return groupFavorites.filter((fav) => {
       const t = fav.songs?.title?.toLowerCase() ?? '';
       const a = fav.songs?.artist?.toLowerCase() ?? '';
-      const u = fav.songs?.url?.toLowerCase() ?? '';
-      return t.includes(q) || a.includes(q) || u.includes(q);
+      const c = fav.songs?.content?.toLowerCase() ?? '';
+      return t.includes(q) || a.includes(q) || c.includes(q);
     });
   })();
 
@@ -454,7 +454,7 @@ export function AddSongModal({
           <div className="mt-6 space-y-4">
             <Input
               type="text"
-              placeholder="Søk på artist, tittel eller URL…"
+              placeholder="Søk på artist, tittel eller tekst…"
               value={favoritesSearch}
               onChange={(e) => setFavoritesSearch(e.target.value)}
               disabled={isFetchingFavorites}
