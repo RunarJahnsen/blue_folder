@@ -39,6 +39,7 @@ export function AddSongModal({
   const [activeTab, setActiveTab] = useState<'url' | 'favorites' | 'all'>('url');
   const [groupFavorites, setGroupFavorites] = useState<FavoriteWithSong[]>([]);
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
+  const [favoritesSearch, setFavoritesSearch] = useState('');
 
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [isFetchingAllSongs, setIsFetchingAllSongs] = useState(false);
@@ -60,7 +61,7 @@ export function AddSongModal({
     (async () => {
       const { data } = await supabase
         .from('favorites')
-        .select('id, song_id, group_id, created_at, songs(id, title, url)')
+        .select('id, song_id, group_id, created_at, songs(id, title, artist, url)')
         .eq('group_id', groupId);
       if (data) setGroupFavorites(data as unknown as FavoriteWithSong[]);
       setIsFetchingFavorites(false);
@@ -247,6 +248,7 @@ export function AddSongModal({
   const handleClose = () => {
     setActiveTab('url');
     setGroupFavorites([]);
+    setFavoritesSearch('');
     setAllSongs([]);
     setAllSongsSearch('');
     setIsFetchingAllSongs(false);
@@ -269,6 +271,17 @@ export function AddSongModal({
       const a = s.artist?.toLowerCase() ?? '';
       const c = s.content?.toLowerCase() ?? '';
       return t.includes(q) || a.includes(q) || c.includes(q);
+    });
+  })();
+
+  const filteredFavorites = (() => {
+    const q = favoritesSearch.trim().toLowerCase();
+    if (!q) return groupFavorites;
+    return groupFavorites.filter((fav) => {
+      const t = fav.songs?.title?.toLowerCase() ?? '';
+      const a = fav.songs?.artist?.toLowerCase() ?? '';
+      const u = fav.songs?.url?.toLowerCase() ?? '';
+      return t.includes(q) || a.includes(q) || u.includes(q);
     });
   })();
 
@@ -438,27 +451,38 @@ export function AddSongModal({
 
         {/* Favorites tab */}
         {activeTab === 'favorites' && (
-          <div className="mt-6">
+          <div className="mt-6 space-y-4">
+            <Input
+              type="text"
+              placeholder="Søk på artist, tittel eller URL…"
+              value={favoritesSearch}
+              onChange={(e) => setFavoritesSearch(e.target.value)}
+              disabled={isFetchingFavorites}
+            />
             {isFetchingFavorites ? (
               <p className="text-sm text-slate-500">Henter favoritter…</p>
             ) : groupFavorites.length === 0 ? (
               <p className="text-sm text-slate-500">Ingen favoritter ennå.</p>
+            ) : filteredFavorites.length === 0 ? (
+              <p className="text-sm text-slate-500">Ingen treff for «{favoritesSearch}».</p>
             ) : (
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                {groupFavorites.map((fav) => (
+                {filteredFavorites.map((fav) => (
                   <button
                     key={fav.id}
                     type="button"
                     onClick={() => createFolderSongEntry(fav.songs.id)}
                     className="w-full text-left border-0 bg-transparent px-0 py-3 hover:opacity-70 transition-opacity"
                   >
-                    <p className="text-sm font-medium text-slate-900">{fav.songs.title}</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {fav.songs.artist ? `${fav.songs.artist} — ${fav.songs.title}` : fav.songs.title}
+                    </p>
                     <p className="text-xs text-slate-400 mt-0.5">{truncateUrl(fav.songs.url)}</p>
                   </button>
                 ))}
               </div>
             )}
-            {error && <div className="text-sm text-red-600 mt-3">{error}</div>}
+            {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
         )}
 
