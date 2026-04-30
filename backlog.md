@@ -221,25 +221,135 @@ Når en sang legges til via URL, henter en Supabase Edge Function sangtekst og b
 
 ### Kjente utfordringer
 - Nettsider har ulik struktur — scraping er ikke 100% pålitelig
-- Ultimate Guitar har bot-beskyttelse — kan feile
+- Ultimate Guitar blokkerer med 403 (bot-beskyttelse) — samme problem som Genius. Krever headless browser. Utsatt.
+- Nortabs er eneste kilde som fungerer stabilt per nå
 - Kan kreve manuell inntasting av innhold som fallback
+
+---
+
+## Slice 8 — Bedre sanginnlegging
+
+### Slice 8a — Sangtekst-input og sangbibliotek
+
+Mål: Brukeren kan legge til sanger ved å lime inn sangtekst direkte, og kan søke i alle tidligere sanger i gruppa.
+
+#### Sangtekst-input
+I "Legg til sang"-modalen kan brukeren velge mellom to inputmåter:
+- **URL** (eksisterende flyt): URL + tittel + artist (valgfritt)
+- **Sangtekst**: tittel (required) + artist (valgfritt) + stort textarea for sangtekst (required). Ingen URL nødvendig.
+
+Ved sangtekst-valg:
+- Ingen URL-deduplicering eller tittel-match — opprett alltid ny Song
+- `url` settes til tom streng eller null
+- `content` settes til teksten som skrives inn
+- Samme `createFolderSongEntry`-logikk som ved URL-flyt
+
+#### Sangbibliotek-fane
+Ny fane i AddSongModal ("Alle sanger") ved siden av "Favoritter". Viser alle sanger i gruppa med søk på artist, tittel og innhold (`songs.content`). Klikk legger sangen til i permen — samme logikk som favoritter-fanen.
+
+### Tasks
+- [ ] Legg til inputmåte-toggle i URL-fanen ("URL" / "Sangtekst")
+- [ ] Bygg sangtekst-flyt: tittel + artist + textarea, opprett Song med content satt
+- [ ] Legg til "Alle sanger"-fane i AddSongModal
+- [ ] Hent alle sanger for gruppa med søk på artist, tittel og content
+- [ ] Klikk på sang i biblioteket legger til i permen
+
+---
+
+## Slice 9 — Brukeradmin og tilgangsstyring
+
+Mål: Appen har et skikkelig brukersystem med roller, slik at tilgang styres per bruker og ikke per session_id.
+
+### Bakgrunn og designbeslutninger
+
+**Tre brukertyper:**
+- **Bruker med admin-rolle** — full tilgang til alt i gruppa. Kan opprette og endre alle permer, invitere gjester, og administrere andre brukere. Admin er en rolle på brukeren, ikke en egen brukertype — det kan være flere admins per gruppe.
+- **Bruker med member-rolle** — kan se alle permer i gruppa og opprette egne permer. Kan ikke endre andres permer (med mindre permen er i suggest- eller open-mode). Eier av permen har vert-rolle i sin egen perm.
+- **Gjest** — invitert via lenke eller kode knyttet til én spesifikk perm. Trenger ikke logge inn. Følger permens mode-regler (host_only/suggest/open). Kan ikke se andre permer i gruppa.
+
+**Autentisering:**
+- Supabase Auth brukes for brukere (admin og member)
+- Brukere registreres med brukernavn + passord. E-post brukes internt som `brukernavn@[gruppe].intern` — aldri synlig for brukeren
+- En bruker kan tilhøre flere grupper med ulike roller
+- Gjester bruker fortsatt session_id-konseptet, men eksplisitt knyttet til én perm via invitasjonskode
+
+**Ny tabell: `group_members`**
+```
+group_members
+  id, user_id (FK → auth.users), group_id, role: admin | member, created_at
+```
+
+**Hva erstattes:**
+- `access_code` på `groups` erstattes av brukerlogin
+- `host_session_id` på `folders` erstattes av eier-konsept (den som opprettet permen)
+- All eksisterende data behandles som testdata og kan nullstilles
+
+---
+
+### Slice 9a — Supabase Auth og brukerregistrering
+
+Mål: Brukere kan registrere seg og logge inn. Admin kan opprette nye brukere i gruppa.
+
+#### Tasks
+- [ ] Aktiver Supabase Auth i prosjektet
+- [ ] Opprett `group_members`-tabellen med `user_id`, `group_id`, `role`
+- [ ] Bygg login-side (`/login`): brukernavn + passord, logger inn med Supabase Auth
+- [ ] Bygg registreringsflyt for admin: opprett ny bruker med brukernavn + passord + rolle, knytt til gruppe
+- [ ] Lagre bruker-session via Supabase Auth (ikke localStorage)
+- [ ] Redirect til gruppevalg etter login hvis brukeren tilhører flere grupper
+- [ ] Redirect til gruppens perm-oversikt etter login hvis brukeren kun tilhører én gruppe
+- [ ] Logg ut-funksjon
+- [ ] Fjern `access_code`-feltet og GroupAccess-siden
+
+#### Teknisk detalj
+Supabase Auth bruker e-post som primær identifikator. Vi bruker `brukernavn@[groupId].intern` internt, men viser kun brukernavn i UI. Passordet håndteres av Supabase (bcrypt, salting — ingen manuell håndtering).
+
+---
+
+### Slice 9b — Tilgangsstyring per perm basert på brukerrolle
+
+Mål: Tilgang til permer og handlinger styres av brukerrolle, ikke session_id.
+
+#### Tasks
+- [ ] Legg til `owner_user_id` (FK → auth.users) på `folders`-tabellen — settes ved opprettelse
+- [ ] Fjern `host_session_id` fra `folders`
+- [ ] Oppdater `isHost`-logikk: bruker er vert hvis `folder.owner_user_id === currentUser.id` ELLER bruker har admin-rolle i gruppa
+- [ ] Admin-brukere har alltid vert-tilgang i alle permer i gruppa
+- [ ] Member-brukere har vert-tilgang kun i sine egne permer
+- [ ] Oppdater `showHostControls` tilsvarende
+- [ ] Legg til Row Level Security (RLS) i Supabase for å håndheve tilgang på database-nivå
+
+---
+
+### Slice 9c — Gjesteinvitasjon
+
+Mål: Admin og permens eier kan invitere gjester til én spesifikk perm via lenke eller kode.
+
+#### Tasks
+- [ ] Legg til `guest_code` (TEXT, nullable, unik) på `folders`-tabellen
+- [ ] Admin/eier kan generere gjestekode for en perm — vises som kopiérbar lenke (`/join/[kode]`)
+- [ ] Bygg join-side (`/join/:guestCode`): validerer kode mot Supabase, gir tilgang til riktig perm
+- [ ] Gjest lagres som session_id i localStorage — eksplisitt markert som gjest for denne permen
+- [ ] Gjest følger permens mode-regler (host_only/suggest/open)
+- [ ] Gjest kan ikke se andre permer i gruppa
+- [ ] Admin/eier kan deaktivere gjestekode (setter `guest_code` til null)
 
 ---
 
 ## Senere forbedringer (ikke i MVP)
 
 - Genius-støtte for sangvisning — krever headless browser (f.eks. Puppeteer på Railway/Fly.io) eller Genius API med nøkkel. Genius blokkerer scraping fra Edge Functions med 403.
+- Ultimate Guitar-støtte — blokkerer med 403 fra Edge Function (bot-beskyttelse). Samme løsning som Genius — krever headless browser.
 - Sangstatistikk (antall ganger spilt, sist spilt, mest populære) — vises i sangoversikten
 - Nylig brukte sanger i "Legg til sang"-modal
 - Auto-utfyll av tittel/artist fra URL (Open Graph / metatags)
 - Drag-and-drop for å sortere køen
-- Visningsnavn ("lagt til av X") uten full login
 - Bedre mobiloptimalisering og PWA-støtte
+- E-post-basert brukerregistrering ved produktisering
 
 ## Fremtidig produktisering (ikke nå)
 
-- Brukerlogin
 - Personlige favoritter
-- Flere grupper med full isolasjon
+- Flere grupper med full isolasjon per bruker
 - Bedre sangbibliotek med flere versjoner per sang
 - Integrasjoner (Spotify, YouTube, Genius)
