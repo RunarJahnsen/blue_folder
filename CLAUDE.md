@@ -152,6 +152,18 @@ Når du får en ny oppgave:
 
 Implementer aldri uten godkjent plan, med mindre vi eksplisitt sier at du kan gå rett til implementering.
 
+### PROGRESS.md
+
+Ved alle implementeringer (unntatt enkle småfikser): opprett eller oppdater `PROGRESS.md` i prosjektets rotmappe. Oppdater den løpende under implementeringen — ikke bare på slutten.
+
+Filen skal inneholde:
+- **Oppgave**: kort beskrivelse av hva som implementeres
+- **Gjort**: hvilke filer som er endret og hva som er fullført
+- **Gjenstår**: hva som ikke er gjort ennå
+- **Avveininger**: eventuelle valg tatt underveis
+
+Dette gjør det mulig å fortsette arbeidet hvis implementeringen avbrytes midt i.
+
 ---
 
 ## Mappestruktur (anbefalt)
