@@ -16,42 +16,44 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchMemberships(userId: string): Promise<GroupMember[]> {
   console.log('[AuthContext] fetchMemberships start, userId:', userId);
+  try {
+    console.log('[AuthContext] starting group_members query...');
+    const { data, error } = await supabase
+      .from('group_members')
+      .select('*')
+      .eq('user_id', userId);
+    console.log('[AuthContext] group_members query done — data:', data, 'error:', error);
 
-  const { data, error } = await supabase
-    .from('group_members')
-    .select('*')
-    .eq('user_id', userId);
+    if (error) {
+      console.error('[AuthContext] group_members query error:', error);
+      return [];
+    }
 
-  if (error) {
-    console.error('[AuthContext] group_members query error:', error);
+    const memberships = (data ?? []) as GroupMember[];
+    if (memberships.length === 0) return [];
+
+    const groupIds = memberships.map((m) => m.group_id);
+    console.log('[AuthContext] starting groups query for ids:', groupIds);
+    const { data: groups, error: groupsError } = await supabase
+      .from('groups')
+      .select('id, name')
+      .in('id', groupIds);
+    console.log('[AuthContext] groups query done — data:', groups, 'error:', groupsError);
+
+    if (groupsError) {
+      console.error('[AuthContext] groups query error:', groupsError);
+      return memberships;
+    }
+
+    const groupMap = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
+    return memberships.map((m) => ({
+      ...m,
+      groups: groupMap[m.group_id] ? { id: m.group_id, name: groupMap[m.group_id] } : undefined,
+    }));
+  } catch (e) {
+    console.error('[AuthContext] fetchMemberships threw unexpectedly:', e);
     return [];
   }
-
-  console.log('[AuthContext] group_members data:', data);
-
-  const memberships = (data ?? []) as GroupMember[];
-  if (memberships.length === 0) return [];
-
-  const groupIds = memberships.map((m) => m.group_id);
-  console.log('[AuthContext] fetching groups for ids:', groupIds);
-
-  const { data: groups, error: groupsError } = await supabase
-    .from('groups')
-    .select('id, name')
-    .in('id', groupIds);
-
-  if (groupsError) {
-    console.error('[AuthContext] groups query error:', groupsError);
-    return memberships;
-  }
-
-  console.log('[AuthContext] groups data:', groups);
-
-  const groupMap = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
-  return memberships.map((m) => ({
-    ...m,
-    groups: groupMap[m.group_id] ? { id: m.group_id, name: groupMap[m.group_id] } : undefined,
-  }));
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
