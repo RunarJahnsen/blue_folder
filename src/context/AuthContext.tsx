@@ -15,59 +15,15 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchMemberships(userId: string): Promise<GroupMember[]> {
-  console.log('[AuthContext] supabase client:', typeof supabase, supabase?.auth ? 'auth ok' : 'auth missing');
-  console.log('[AuthContext] fetchMemberships start, userId:', userId);
+  console.log('[AuthContext] fetchMemberships step 1');
   try {
-    console.log('[AuthContext] starting group_members query...');
-    console.log('[AuthContext] supabase url:', (supabase as unknown as { supabaseUrl?: string }).supabaseUrl ?? 'missing');
-    const supabaseUrl = (supabase as unknown as { supabaseUrl: string }).supabaseUrl;
-    const supabaseKey = (supabase as unknown as { supabaseKey: string }).supabaseKey;
-    const accessToken = (await supabase.auth.getSession()).data.session?.access_token;
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/group_members?user_id=eq.${userId}`,
-      {
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-    const json = await response.json();
-    console.log('[AuthContext] raw fetch result:', json);
-    const data = Array.isArray(json) ? json : null;
-    const error = Array.isArray(json) ? null : json;
-    console.log('[AuthContext] group_members query done — data:', data, 'error:', error);
-
-    if (error) {
-      console.error('[AuthContext] group_members query error:', error);
-      return [];
-    }
-
-    const memberships = (data ?? []) as GroupMember[];
-    if (memberships.length === 0) return [];
-
-    const groupIds = memberships.map((m) => m.group_id);
-    console.log('[AuthContext] starting groups query for ids:', groupIds);
-    const { data: groups, error: groupsError } = await supabase
-      .from('groups')
-      .select('id, name')
-      .in('id', groupIds);
-    console.log('[AuthContext] groups query done — data:', groups, 'error:', groupsError);
-
-    if (groupsError) {
-      console.error('[AuthContext] groups query error:', groupsError);
-      return memberships;
-    }
-
-    const groupMap = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
-    return memberships.map((m) => ({
-      ...m,
-      groups: groupMap[m.group_id] ? { id: m.group_id, name: groupMap[m.group_id] } : undefined,
-    }));
+    console.log('[AuthContext] fetchMemberships step 2');
+    const result = await supabase.from('group_members').select('*');
+    console.log('[AuthContext] fetchMemberships step 3, result:', result);
   } catch (e) {
-    console.error('[AuthContext] fetchMemberships threw unexpectedly:', e);
-    return [];
+    console.error('[AuthContext] fetchMemberships caught:', e);
   }
+  return [];
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
