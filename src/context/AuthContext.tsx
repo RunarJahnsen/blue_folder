@@ -19,6 +19,7 @@ async function fetchMemberships(userId: string): Promise<GroupMember[]> {
   console.log('[AuthContext] fetchMemberships start, userId:', userId);
   try {
     console.log('[AuthContext] starting group_members query...');
+    console.log('[AuthContext] supabase url:', (supabase as unknown as { supabaseUrl?: string }).supabaseUrl ?? 'missing');
     const { data, error } = await supabase
       .from('group_members')
       .select('*')
