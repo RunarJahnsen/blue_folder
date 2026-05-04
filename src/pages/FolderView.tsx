@@ -42,7 +42,10 @@ export function FolderView() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
+    console.log('[FolderView] useEffect triggered', { groupId, folderId });
+
     if (!groupId || !folderId) {
+      console.log('[FolderView] early return: missing groupId or folderId');
       setError('Mangler gruppe-id eller folder-id.');
       setIsLoading(false);
       return;
@@ -52,7 +55,9 @@ export function FolderView() {
     setError('');
 
     (async () => {
+      console.log('[FolderView] async IIFE started');
       try {
+        console.log('[FolderView] about to query folders...');
         const { data: folderData, error: folderError } = await supabase
           .from('folders')
           .select('id, group_id, title, date, status, mode, current_queue_item_id, host_session_id')
