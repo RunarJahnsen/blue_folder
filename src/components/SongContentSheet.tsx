@@ -17,7 +17,10 @@ export function SongContentSheet({ isOpen, onClose, song }: SongContentSheetProp
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="bottom" className="h-[85vh] flex flex-col">
+      <SheetContent
+        side="bottom"
+        className="max-h-[85vh] data-[state=open]:flex data-[state=open]:flex-col"
+      >
         <SheetHeader className="flex-shrink-0">
           <SheetTitle>
             {song.artist ? `${song.artist} — ${song.title}` : song.title}
