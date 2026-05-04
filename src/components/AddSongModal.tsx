@@ -54,6 +54,7 @@ export function AddSongModal({
   const [existingSong, setExistingSong] = useState<Song | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showFetchWarning, setShowFetchWarning] = useState(false);
 
   useEffect(() => {
     if (activeTab !== 'favorites' || !groupId) return;
@@ -194,18 +195,23 @@ export function AddSongModal({
         return;
       }
 
-      supabase.functions.invoke('fetch-song-content', {
-        body: { url: newSong.url, song_id: newSong.id },
-        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
-      }).then((res) => console.log('Edge Function response:', res)).catch((err) => console.error('Edge Function error:', err));
+      let contentFetched = false;
+      try {
+        const res = await supabase.functions.invoke('fetch-song-content', {
+          body: { url: newSong.url, song_id: newSong.id },
+          headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+        });
+        contentFetched = !!(res.data?.content);
+      } catch {}
 
-      await createFolderSongEntry(newSong.id);
+      await createFolderSongEntry(newSong.id, contentFetched);
+      if (!contentFetched) setShowFetchWarning(true);
     } catch {
       setError('En feil oppstod.');
     }
   };
 
-  const createFolderSongEntry = async (songId: string) => {
+  const createFolderSongEntry = async (songId: string, closeAfter = true) => {
     try {
       const state = folderMode === 'suggest' ? 'suggested' : 'queued';
       const position = folderMode === 'suggest' ? undefined : maxPosition + 1;
@@ -226,7 +232,7 @@ export function AddSongModal({
       }
 
       onSongAdded();
-      handleClose();
+      if (closeAfter) handleClose();
     } catch {
       setError('En feil oppstod.');
     }
@@ -246,6 +252,7 @@ export function AddSongModal({
   };
 
   const handleClose = () => {
+    setShowFetchWarning(false);
     setActiveTab('url');
     setGroupFavorites([]);
     setFavoritesSearch('');
@@ -297,6 +304,17 @@ export function AddSongModal({
           <SheetDescription>Legg til ny sang til permen</SheetDescription>
         </SheetHeader>
 
+        {showFetchWarning ? (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+              Kunne ikke hente sangtekst automatisk. Du kan legge inn teksten manuelt eller prøve igjen fra sangoversikten.
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleClose}>Lukk</Button>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Tab toggle */}
         <div className="flex gap-2 mt-4 flex-wrap">
           <Button
@@ -523,6 +541,8 @@ export function AddSongModal({
             )}
             {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
+        )}
+        </>
         )}
       </SheetContent>
     </Sheet>

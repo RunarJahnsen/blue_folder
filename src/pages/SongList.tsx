@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 import { ArrowLeft, Heart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Favorite, Song } from '@/lib/types';
@@ -28,6 +29,7 @@ export function SongList() {
   const [editUrl, setEditUrl] = useState('');
   const [editContent, setEditContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetchingContent, setIsFetchingContent] = useState(false);
 
   useEffect(() => {
     if (!groupId) return;
@@ -76,6 +78,20 @@ export function SongList() {
     setEditArtist(song.artist ?? '');
     setEditUrl(song.url ?? '');
     setEditContent(song.content ?? '');
+  };
+
+  const handleFetchContent = async () => {
+    if (!editingSong || !editUrl.trim()) return;
+    setIsFetchingContent(true);
+    try {
+      await supabase.functions.invoke('fetch-song-content', {
+        body: { url: editUrl.trim(), song_id: editingSong.id },
+        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+      });
+      const { data } = await supabase.from('songs').select('content').eq('id', editingSong.id).single();
+      if (data?.content) setEditContent(data.content);
+    } catch {}
+    setIsFetchingContent(false);
   };
 
   const handleSaveSong = async () => {
@@ -233,11 +249,24 @@ export function SongList() {
               <label className="text-sm font-medium text-slate-700">
                 URL <span className="text-slate-400 font-normal">(valgfritt)</span>
               </label>
-              <Input
-                value={editUrl}
-                onChange={(e) => setEditUrl(e.target.value)}
-                placeholder="https://..."
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  placeholder="https://..."
+                />
+                {editUrl.trim() && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleFetchContent}
+                    disabled={isFetchingContent}
+                    className="flex-shrink-0"
+                  >
+                    {isFetchingContent ? 'Henter…' : 'Hent tekst'}
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">
