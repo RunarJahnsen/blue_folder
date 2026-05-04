@@ -8,6 +8,13 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { AddSongModal } from '@/components/AddSongModal';
 import { SongContentSheet } from '@/components/SongContentSheet';
 import { useSession } from '@/hooks/useSession';
@@ -27,6 +34,12 @@ export function FolderView() {
   const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!groupId || !folderId) {
@@ -361,6 +374,35 @@ export function FolderView() {
     setFolder((prev) => (prev ? { ...prev, mode } : prev));
   };
 
+  const handleOpenEdit = () => {
+    setEditTitle(folder?.title ?? '');
+    setEditDate(folder?.date ?? '');
+    setIsEditSheetOpen(true);
+  };
+
+  const handleSaveFolder = async () => {
+    if (!folderId || !editTitle.trim()) return;
+    setIsSaving(true);
+    const { error } = await supabase
+      .from('folders')
+      .update({ title: editTitle.trim(), date: editDate })
+      .eq('id', folderId);
+    setIsSaving(false);
+    if (error) return;
+    setFolder((prev) => prev ? { ...prev, title: editTitle.trim(), date: editDate } : prev);
+    setIsEditSheetOpen(false);
+  };
+
+  const handleDeleteFolder = async () => {
+    if (!folderId || !groupId) return;
+    setIsDeleting(true);
+    await supabase.from('folder_song_entries').delete().eq('folder_id', folderId);
+    const { error } = await supabase.from('folders').delete().eq('id', folderId);
+    setIsDeleting(false);
+    if (error) return;
+    navigate(`/${groupId}`);
+  };
+
   const handleSongAdded = () => {
     if (!groupId || !folderId) return;
     (async () => {
@@ -484,7 +526,7 @@ export function FolderView() {
             )}
           </div>
           {showHostControls && (
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-wrap justify-end gap-3">
               <select
                 className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 value={folder.status}
@@ -503,6 +545,39 @@ export function FolderView() {
                 <option value="suggest">Forslag</option>
                 <option value="open">Åpen</option>
               </select>
+              <Button size="sm" variant="outline" onClick={handleOpenEdit}>
+                Rediger
+              </Button>
+              {isConfirmingDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Er du sikker?</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsConfirmingDelete(false)}
+                    disabled={isDeleting}
+                  >
+                    Avbryt
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleDeleteFolder}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? 'Sletter…' : 'Ja, slett'}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => setIsConfirmingDelete(true)}
+                >
+                  Slett
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -711,6 +786,50 @@ export function FolderView() {
         onClose={() => setSelectedSong(null)}
         song={selectedSong}
       />
+
+      <Sheet open={isEditSheetOpen} onOpenChange={(open) => { if (!open) setIsEditSheetOpen(false); }}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[85vh] data-[state=open]:flex data-[state=open]:flex-col"
+        >
+          <SheetHeader className="flex-shrink-0">
+            <SheetTitle>Rediger perm</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-4 mt-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Tittel</label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Permens tittel"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Dato</label>
+              <Input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditSheetOpen(false)}
+                disabled={isSaving}
+              >
+                Avbryt
+              </Button>
+              <Button
+                onClick={handleSaveFolder}
+                disabled={isSaving || !editTitle.trim()}
+              >
+                {isSaving ? 'Lagrer…' : 'Lagre'}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
