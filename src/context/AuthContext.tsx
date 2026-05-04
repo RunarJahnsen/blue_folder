@@ -53,24 +53,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const m = await fetchMemberships(session.user.id);
-        setMemberships(m);
+      try {
+        if (session?.user) {
+          const m = await fetchMemberships(session.user.id);
+          setMemberships(m);
+        }
+        setSession(session);
+      } finally {
+        setIsLoading(false);
       }
-      setSession(session);
-      setIsLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const m = await fetchMemberships(session.user.id);
-        setMemberships(m);
-      } else {
-        setMemberships([]);
+      try {
+        if (session?.user) {
+          const m = await fetchMemberships(session.user.id);
+          setMemberships(m);
+        } else {
+          setMemberships([]);
+        }
+        setSession(session);
+      } catch (e) {
+        console.error('onAuthStateChange error:', e);
+        setSession(session);
       }
-      setSession(session);
     });
 
     return () => subscription.unsubscribe();
