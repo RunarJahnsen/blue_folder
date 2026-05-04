@@ -15,11 +15,35 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchMemberships(userId: string): Promise<GroupMember[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('group_members')
-    .select('*, groups(id, name)')
+    .select('*')
     .eq('user_id', userId);
-  return (data ?? []) as unknown as GroupMember[];
+
+  if (error) {
+    console.error('fetchMemberships error:', error);
+    return [];
+  }
+
+  const memberships = (data ?? []) as GroupMember[];
+  if (memberships.length === 0) return [];
+
+  const groupIds = memberships.map((m) => m.group_id);
+  const { data: groups, error: groupsError } = await supabase
+    .from('groups')
+    .select('id, name')
+    .in('id', groupIds);
+
+  if (groupsError) {
+    console.error('fetchMemberships groups error:', groupsError);
+    return memberships;
+  }
+
+  const groupMap = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
+  return memberships.map((m) => ({
+    ...m,
+    groups: groupMap[m.group_id] ? { id: m.group_id, name: groupMap[m.group_id] } : undefined,
+  }));
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
