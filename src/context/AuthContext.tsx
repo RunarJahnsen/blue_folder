@@ -14,7 +14,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchMemberships(userId: string): Promise<GroupMember[]> {
+async function fetchMemberships(_userId: string): Promise<GroupMember[]> {
   console.log('[AuthContext] fetchMemberships step 1');
   try {
     console.log('[AuthContext] fetchMemberships step 2');
