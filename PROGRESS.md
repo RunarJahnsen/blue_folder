@@ -1,63 +1,111 @@
 # Progress
 
 ## Pågående oppgave
-Slice 8b del 2 — Fjern sang fra kø og rediger sang i sanglisten.
+Slice 8c — Tagging av sanger. Egendefinerte tagger per gruppe for organisering og søk.
 
 ## Analyse
 
-### Del 1 — Fjern sang fra kø (FolderView.tsx)
+### 1. Datamodell — separate tabeller (ikke JSONB)
 
-Kø-kortene har i dag host-knappene "Flytt nederst", "Spill som neste", "Spill nå" i en rad.
-En "Fjern"-knapp legges til i samme rad med rød stil (`bg-red-600`).
+**Valg: `tags`-tabell + `song_tags`-koblingstabell.**
 
-Handler:
-```ts
-const handleRemoveFromQueue = async (entryId: string) => {
-  await supabase.from('folder_song_entries').update({ state: 'removed' }).eq('id', entryId);
-  setEntries((prev) => prev.map((e) => e.id === entryId ? { ...e, state: 'removed' } : e));
-};
+JSONB/TEXT[]-array på `songs` er enklere å implementere, men har to kritiske svakheter:
+- Autocomplete-kravet krever en liste over alle tagger i gruppa. Med JSONB må man aggregere på tvers av alle sanger med `UNNEST` + `DISTINCT` — ineffektivt og klønete.
+- Omdøping eller sletting av en tag globalt er ikke mulig uten å løpe gjennom alle sanger.
+
+Med egne tabeller er det enkelt:
+- `SELECT * FROM tags WHERE group_id = ?` gir alle tagger i gruppa — perfekt for autocomplete.
+- `UNIQUE(group_id, name)` sikrer ingen duplikater.
+- `group_id` på begge tabeller følger prosjektkonvensjonen.
+
+**SQL (kjøres i Supabase SQL-editor):**
+```sql
+CREATE TABLE tags (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(group_id, name)
+);
+
+CREATE TABLE song_tags (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  song_id UUID NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  UNIQUE(song_id, tag_id)
+);
+
+CREATE INDEX idx_tags_group_id ON tags(group_id);
+CREATE INDEX idx_song_tags_song_id ON song_tags(song_id);
+CREATE INDEX idx_song_tags_tag_id ON song_tags(tag_id);
+CREATE INDEX idx_song_tags_group_id ON song_tags(group_id);
 ```
 
-Ingen bekreftelsesdialog — oppgaven beskriver direkte klikk. Rød knappfarge er det visuelle signalet.
-Tilgangsstyring: samme `showHostControls`-betingelse som øvrige køknapper.
+**Datahenting:** Supabase-join i sangspørringen:
+```ts
+supabase.from('songs').select('*, song_tags(id, tag_id, tags(id, name))')
+```
 
-**Fil som endres:** `src/pages/FolderView.tsx`
+Ved lagring av tags:
+1. Finn/opprett tagger i `tags`-tabellen (upsert med `onConflict: 'group_id,name'`)
+2. Slett eksisterende `song_tags` for sangen
+3. Sett inn nye `song_tags`-rader
 
 ---
 
-### Del 2 — Rediger sang (SongList.tsx)
+### 2. UI-plassering — i rediger-sheeten i SongList
 
-SongList har i dag tittel, artist, URL og slett-knapp per sang. Content (sangtekst) vises ikke.
+Tagging legges inn **i rediger-sheeten** (SongList.tsx), under de eksisterende feltene. Dette er det naturlige stedet siden det er der alle sangegenskaper redigeres.
 
-**UI-valg: Bottom Sheet** — konsistent med redigeringsmønsteret fra FolderView.
-Grunner: 4 felter (tittel, artist, URL, sangtekst), særlig content-feltet krever textarea og plass.
-Inline expand blir for trangt på 375px.
+I sanglisten vises tags som små badges/chips per sang-rad for oversikt.
 
-State som legges til:
-- `editingSong: Song | null` — hvilken sang som redigeres
-- `editFields: { title, artist, url, content }` — aktive feltverdier
-- `isSaving: boolean`
+Over sanglisten legges det til et tag-filter: klikk på en tag → vis bare sanger med den taggen. Flere tagger = union (ELLER), ikke intersection — enklere og mer nyttig i praksis.
 
-Handler `handleSaveSong`:
-```ts
-supabase.from('songs').update({ title, artist, url, content }).eq('id', editingSong.id)
-```
-Etter lagring: oppdater lokal `songs`-state optimistisk.
-
-"Rediger"-knapp (outline) legges til ved siden av eksisterende "Slett"-knapp i sang-raden.
-Sheet lukkes via `onOpenChange` som nuller ut `editingSong`.
-
-**Fil som endres:** `src/pages/SongList.tsx`
+I "Alle sanger"-fanen i AddSongModal: samme tag-filter-chips over listen for å begrense utvalget.
 
 ---
 
-### Ingen nye filer
-Sheet-komponenten (`src/components/ui/sheet.tsx`) og Input (`src/components/ui/input.tsx`) finnes allerede.
+### 3. Autocomplete uten tunge biblioteker
+
+**Enkel egenlaget løsning med React-state:**
+
+1. Last alle gruppens tagger ved mount: `allTags: Tag[]`
+2. I edit-sheeten: ett tekst-input-felt for ny tag
+3. Mens brukeren skriver → `useMemo` filtrerer `allTags` på input-tekst, ekskluderer allerede valgte tagger
+4. Forslag vises som klikkbare chips rett under inputfeltet (betinget rendering)
+5. Klikk på forslag → legg til tag, tøm input
+6. Enter → opprett ny tag hvis ingen eksakt match finnes, ellers velg første treff
+7. Valgte tagger vises som chips med ×-knapp over inputfeltet
+
+Ingen bibliotek nødvendig. Maks ~30 linjer logikk.
+
+---
+
+### Filer som endres/opprettes
+
+| Fil | Endring |
+|-----|---------|
+| `supabase-schema.sql` | Legg til `tags`- og `song_tags`-tabeller med indekser |
+| `src/lib/types.ts` | Legg til `Tag`, `SongTag`-interfaces og Database-mapping |
+| `src/pages/SongList.tsx` | Tag-henting, badge-visning per sang, tag-filter, tag-editor i sheet |
+| `src/components/AddSongModal.tsx` | Tag-filter i "Alle sanger"-fanen |
+
+Ingen nye React-filer.
+
+---
+
+### Avveininger
+- Tag-filter bruker ELLER-logikk (ikke OG) — enklere for MVP, dekker de fleste brukstilfeller
+- Tags er ikke case-sensitive (normaliseres til lowercase ved lagring)
+- Ingen global tag-administrasjon (omdøp/slett alle) i MVP — kan legges til senere
+- `song_tags` slettes og settes inn på nytt ved lagring (ikke diff) — enklere kode, akseptabel ytelse for MVP-skala
 
 ## Gjort
-- Del 1: handleRemoveFromQueue + rød Fjern-knapp i kø-kortene (FolderView.tsx)
-
-- Del 2: imports + state + handleOpenEdit + handleSaveSong + Rediger-knapp + Sheet i SongList.tsx
+- types.ts: lagt til Tag, SongTagEntry, SongWithTags
+- SongList.tsx: tags-henting, filter-chips, badges, tag-editor med autocomplete i sheet
+- AddSongModal.tsx: tag-filter chips i "Alle sanger"-fanen, tags vises på sangene
+- supabase-schema.sql: tags og song_tags tabeller med indekser dokumentert
 
 ## Gjenstår
 (ingenting)

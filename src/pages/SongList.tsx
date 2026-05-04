@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-import { ArrowLeft, Heart } from 'lucide-react';
+import { ArrowLeft, Heart, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Favorite, Song } from '@/lib/types';
+import type { Favorite, SongWithTags, Tag, SongTagEntry } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,38 +17,49 @@ import {
 export function SongList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [songs, setSongs] = useState<SongWithTags[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [activeFilterTags, setActiveFilterTags] = useState<string[]>([]);
+
+  const [editingSong, setEditingSong] = useState<SongWithTags | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editTagNames, setEditTagNames] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
 
   useEffect(() => {
     if (!groupId) return;
     (async () => {
-      const [songsResult, favsResult] = await Promise.all([
+      const [songsResult, favsResult, tagsResult] = await Promise.all([
         supabase
           .from('songs')
-          .select('id, group_id, title, artist, url, content, created_at, updated_at')
+          .select('id, group_id, title, artist, url, content, created_at, updated_at, song_tags(id, tag_id, tags(id, name))')
           .eq('group_id', groupId)
           .order('title', { ascending: true }),
         supabase
           .from('favorites')
           .select('id, song_id')
           .eq('group_id', groupId),
+        supabase
+          .from('tags')
+          .select('id, group_id, name, created_at')
+          .eq('group_id', groupId)
+          .order('name'),
       ]);
 
       if (songsResult.error) setError('Kunne ikke hente sanger.');
-      else if (songsResult.data) setSongs(songsResult.data as Song[]);
+      else if (songsResult.data) setSongs(songsResult.data as unknown as SongWithTags[]);
       if (favsResult.data) setFavorites(favsResult.data as Favorite[]);
+      if (tagsResult.data) setAllTags(tagsResult.data as Tag[]);
       setIsLoading(false);
     })();
   }, [groupId]);
@@ -57,6 +68,31 @@ export function SongList() {
     () => new Set(favorites.map((f) => f.song_id)),
     [favorites]
   );
+
+  const tagsInUse = useMemo(() => {
+    const tagMap = new Map<string, Tag>();
+    songs.forEach(song => {
+      song.song_tags?.forEach(st => {
+        if (st.tags) tagMap.set(st.tags.id, st.tags);
+      });
+    });
+    return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [songs]);
+
+  const filteredSongs = useMemo(() => {
+    if (activeFilterTags.length === 0) return songs;
+    return songs.filter(song =>
+      activeFilterTags.some(tagId => song.song_tags?.some(st => st.tag_id === tagId))
+    );
+  }, [songs, activeFilterTags]);
+
+  const tagSuggestions = useMemo(() => {
+    const q = tagInput.trim().toLowerCase();
+    if (!q) return [];
+    return allTags
+      .filter(t => t.name.includes(q) && !editTagNames.includes(t.name))
+      .slice(0, 5);
+  }, [tagInput, allTags, editTagNames]);
 
   const handleDelete = async (songId: string) => {
     setIsDeleting(true);
@@ -72,12 +108,37 @@ export function SongList() {
     setIsDeleting(false);
   };
 
-  const handleOpenEdit = (song: Song) => {
+  const handleOpenEdit = (song: SongWithTags) => {
     setEditingSong(song);
     setEditTitle(song.title ?? '');
     setEditArtist(song.artist ?? '');
     setEditUrl(song.url ?? '');
     setEditContent(song.content ?? '');
+    setEditTagNames(
+      (song.song_tags?.map(st => st.tags?.name).filter(Boolean) as string[]) ?? []
+    );
+    setTagInput('');
+  };
+
+  const handleAddTagToEdit = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    if (!normalized || editTagNames.includes(normalized)) { setTagInput(''); return; }
+    setEditTagNames(prev => [...prev, normalized]);
+    setTagInput('');
+  };
+
+  const handleRemoveTagFromEdit = (name: string) => {
+    setEditTagNames(prev => prev.filter(t => t !== name));
+  };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = tagInput.trim().toLowerCase();
+      if (!q) return;
+      const exactMatch = tagSuggestions.find(t => t.name === q);
+      handleAddTagToEdit(exactMatch ? exactMatch.name : q);
+    }
   };
 
   const handleFetchContent = async () => {
@@ -95,8 +156,9 @@ export function SongList() {
   };
 
   const handleSaveSong = async () => {
-    if (!editingSong || !editTitle.trim()) return;
+    if (!editingSong || !editTitle.trim() || !groupId) return;
     setIsSaving(true);
+
     const { error } = await supabase
       .from('songs')
       .update({
@@ -106,15 +168,50 @@ export function SongList() {
         content: editContent.trim() || null,
       })
       .eq('id', editingSong.id);
+    if (error) { setIsSaving(false); return; }
+
+    let savedTags: Tag[] = [];
+    if (editTagNames.length > 0) {
+      const { data: upsertedTags } = await supabase
+        .from('tags')
+        .upsert(
+          editTagNames.map(name => ({ group_id: groupId, name })),
+          { onConflict: 'group_id,name' }
+        )
+        .select();
+      if (upsertedTags) savedTags = upsertedTags as Tag[];
+    }
+
+    await supabase.from('song_tags').delete().eq('song_id', editingSong.id);
+    if (savedTags.length > 0) {
+      await supabase.from('song_tags').insert(
+        savedTags.map(tag => ({ song_id: editingSong.id, tag_id: tag.id, group_id: groupId }))
+      );
+    }
+
+    const newSongTags: SongTagEntry[] = savedTags.map(tag => ({
+      id: '',
+      song_id: editingSong.id,
+      tag_id: tag.id,
+      group_id: groupId,
+      tags: tag,
+    }));
+
+    setSongs(prev => prev.map(s =>
+      s.id === editingSong.id
+        ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || undefined, url: editUrl.trim(), content: editContent.trim() || undefined, song_tags: newSongTags }
+        : s
+    ));
+
+    setAllTags(prev => {
+      const existingIds = new Set(prev.map(t => t.id));
+      const newTags = savedTags.filter(t => !existingIds.has(t.id));
+      return newTags.length > 0
+        ? [...prev, ...newTags].sort((a, b) => a.name.localeCompare(b.name))
+        : prev;
+    });
+
     setIsSaving(false);
-    if (error) return;
-    setSongs((prev) =>
-      prev.map((s) =>
-        s.id === editingSong.id
-          ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || undefined, url: editUrl.trim(), content: editContent.trim() || undefined }
-          : s
-      )
-    );
     setEditingSong(null);
   };
 
@@ -139,15 +236,50 @@ export function SongList() {
           <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error}</div>
         )}
 
+        {/* Tag filter */}
+        {tagsInUse.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-1">
+            {tagsInUse.map(tag => (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() =>
+                  setActiveFilterTags(prev =>
+                    prev.includes(tag.id)
+                      ? prev.filter(id => id !== tag.id)
+                      : [...prev, tag.id]
+                  )
+                }
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                  activeFilterTags.includes(tag.id)
+                    ? 'bg-sky-500 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {tag.name}
+              </button>
+            ))}
+            {activeFilterTags.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveFilterTags([])}
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200 border-0"
+              >
+                Nullstill
+              </button>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="rounded-2xl bg-white p-6 text-slate-700 shadow-sm">Henter sanger…</div>
-        ) : songs.length === 0 ? (
+        ) : filteredSongs.length === 0 ? (
           <Card className="bg-slate-50 text-slate-600 text-sm">
-            <CardContent>Ingen sanger ennå.</CardContent>
+            <CardContent>{songs.length === 0 ? 'Ingen sanger ennå.' : 'Ingen sanger matcher valgte tagger.'}</CardContent>
           </Card>
         ) : (
           <div className="divide-y divide-slate-100 rounded-2xl bg-white shadow-sm overflow-hidden">
-            {songs.map((song) => (
+            {filteredSongs.map((song) => (
               <div key={song.id} className="px-5 py-4">
                 {confirmDeleteId === song.id ? (
                   <div className="flex flex-col gap-2">
@@ -174,26 +306,40 @@ export function SongList() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2 min-w-0">
                       <Heart
-                        className={`h-4 w-4 flex-shrink-0 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300'}`}
+                        className={`h-4 w-4 flex-shrink-0 mt-0.5 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300'}`}
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">
                           {song.artist ? `${song.artist} — ${song.title}` : song.title}
                         </p>
-                        <a
-                          href={song.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-slate-400 hover:text-sky-500 truncate block"
-                        >
-                          {song.url.length > 50 ? song.url.slice(0, 47) + '…' : song.url}
-                        </a>
+                        {song.url && (
+                          <a
+                            href={song.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-slate-400 hover:text-sky-500 truncate block"
+                          >
+                            {song.url.length > 50 ? song.url.slice(0, 47) + '…' : song.url}
+                          </a>
+                        )}
+                        {song.song_tags && song.song_tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {song.song_tags.map(st => st.tags && (
+                              <span
+                                key={st.tag_id}
+                                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600"
+                              >
+                                {st.tags.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-shrink-0">
                       <Button
                         size="sm"
                         variant="outline"
@@ -274,12 +420,61 @@ export function SongList() {
               </label>
               <textarea
                 className="w-full min-w-0 rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-base transition-colors outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-0 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                rows={8}
+                rows={6}
                 placeholder="Lim inn sangteksten her..."
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
               />
             </div>
+
+            {/* Tag editor */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                Tagger <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              {editTagNames.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {editTagNames.map(name => (
+                    <span
+                      key={name}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-700"
+                    >
+                      {name}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTagFromEdit(name)}
+                        className="border-0 bg-transparent p-0 leading-none text-sky-500 hover:text-sky-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="relative">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagInputKeyDown}
+                  placeholder="Legg til tagg…"
+                />
+                {tagSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                    {tagSuggestions.map(tag => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); handleAddTagToEdit(tag.name); }}
+                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-3 justify-end pt-2">
               <Button
                 variant="outline"

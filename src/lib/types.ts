@@ -52,6 +52,25 @@ export interface Favorite {
   created_at: string;
 }
 
+export interface Tag {
+  id: string;
+  group_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface SongTagEntry {
+  id: string;
+  song_id: string;
+  tag_id: string;
+  group_id: string;
+  tags: Tag;
+}
+
+export interface SongWithTags extends Song {
+  song_tags?: SongTagEntry[];
+}
+
 export type Database = {
   public: {
     Tables: {

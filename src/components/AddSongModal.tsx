@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-import type { Favorite, Song } from '@/lib/types';
+import type { Favorite, Song, SongWithTags, Tag } from '@/lib/types';
 import {
   Sheet,
   SheetContent,
@@ -41,9 +41,11 @@ export function AddSongModal({
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
   const [favoritesSearch, setFavoritesSearch] = useState('');
 
-  const [allSongs, setAllSongs] = useState<Song[]>([]);
+  const [allSongs, setAllSongs] = useState<SongWithTags[]>([]);
   const [isFetchingAllSongs, setIsFetchingAllSongs] = useState(false);
   const [allSongsSearch, setAllSongsSearch] = useState('');
+  const [allModalTags, setAllModalTags] = useState<Tag[]>([]);
+  const [activeModalFilterTags, setActiveModalFilterTags] = useState<string[]>([]);
 
   const [inputMode, setInputMode] = useState<InputMode>('url');
   const [step, setStep] = useState<Step>('input');
@@ -76,12 +78,20 @@ export function AddSongModal({
     if (activeTab !== 'all' || !groupId) return;
     setIsFetchingAllSongs(true);
     (async () => {
-      const { data } = await supabase
-        .from('songs')
-        .select('*')
-        .eq('group_id', groupId)
-        .order('title');
-      if (data) setAllSongs(data as unknown as Song[]);
+      const [songsResult, tagsResult] = await Promise.all([
+        supabase
+          .from('songs')
+          .select('*, song_tags(id, tag_id, tags(id, name))')
+          .eq('group_id', groupId)
+          .order('title'),
+        supabase
+          .from('tags')
+          .select('id, group_id, name, created_at')
+          .eq('group_id', groupId)
+          .order('name'),
+      ]);
+      if (songsResult.data) setAllSongs(songsResult.data as unknown as SongWithTags[]);
+      if (tagsResult.data) setAllModalTags(tagsResult.data as Tag[]);
       setIsFetchingAllSongs(false);
     })();
   }, [activeTab, groupId]);
@@ -276,6 +286,8 @@ export function AddSongModal({
     setAllSongs([]);
     setAllSongsSearch('');
     setIsFetchingAllSongs(false);
+    setAllModalTags([]);
+    setActiveModalFilterTags([]);
     setInputMode('url');
     setStep('input');
     setUrl('');
@@ -289,13 +301,23 @@ export function AddSongModal({
 
   const filteredAllSongs = (() => {
     const q = allSongsSearch.trim().toLowerCase();
-    if (!q) return allSongs;
-    return allSongs.filter((s) => {
-      const t = s.title?.toLowerCase() ?? '';
-      const a = s.artist?.toLowerCase() ?? '';
-      const c = s.content?.toLowerCase() ?? '';
-      return t.includes(q) || a.includes(q) || c.includes(q);
-    });
+    let result = allSongs;
+    if (q) {
+      result = result.filter((s) => {
+        const t = s.title?.toLowerCase() ?? '';
+        const a = s.artist?.toLowerCase() ?? '';
+        const c = s.content?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q);
+      });
+    }
+    if (activeModalFilterTags.length > 0) {
+      result = result.filter(s =>
+        activeModalFilterTags.some(tagId =>
+          (s as SongWithTags).song_tags?.some(st => st.tag_id === tagId)
+        )
+      );
+    }
+    return result;
   })();
 
   const filteredFavorites = (() => {
@@ -550,12 +572,36 @@ export function AddSongModal({
               onChange={(e) => setAllSongsSearch(e.target.value)}
               disabled={isFetchingAllSongs}
             />
+            {allModalTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {allModalTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() =>
+                      setActiveModalFilterTags(prev =>
+                        prev.includes(tag.id)
+                          ? prev.filter(id => id !== tag.id)
+                          : [...prev, tag.id]
+                      )
+                    }
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                      activeModalFilterTags.includes(tag.id)
+                        ? 'bg-sky-500 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
+            )}
             {isFetchingAllSongs ? (
               <p className="text-sm text-slate-500">Henter sanger…</p>
             ) : allSongs.length === 0 ? (
               <p className="text-sm text-slate-500">Ingen sanger i biblioteket ennå.</p>
             ) : filteredAllSongs.length === 0 ? (
-              <p className="text-sm text-slate-500">Ingen treff for «{allSongsSearch}».</p>
+              <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {filteredAllSongs.map((song) => (
@@ -571,6 +617,15 @@ export function AddSongModal({
                     <p className="text-xs text-slate-400 mt-0.5">
                       {song.url ? truncateUrl(song.url) : 'Sangtekst'}
                     </p>
+                    {(song as SongWithTags).song_tags && (song as SongWithTags).song_tags!.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {(song as SongWithTags).song_tags!.map(st => st.tags && (
+                          <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
+                            {st.tags.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
