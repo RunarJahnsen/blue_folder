@@ -458,7 +458,8 @@ export function SongList() {
                   ))}
                 </div>
               )}
-              <div className="relative">
+              <div className="flex gap-2">
+              <div className="relative flex-1">
                 <Input
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
@@ -479,6 +480,16 @@ export function SongList() {
                     ))}
                   </div>
                 )}
+              </div>
+              {tagInput.trim() && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); handleAddTagToEdit(tagInput); }}
+                  className="flex-shrink-0 self-start inline-flex items-center rounded-full border-0 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                >
+                  +
+                </button>
+              )}
               </div>
             </div>
 
