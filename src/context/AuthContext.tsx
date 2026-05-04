@@ -15,6 +15,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchMemberships(userId: string): Promise<GroupMember[]> {
+  console.log('[AuthContext] supabase client:', typeof supabase, supabase?.auth ? 'auth ok' : 'auth missing');
   console.log('[AuthContext] fetchMemberships start, userId:', userId);
   try {
     console.log('[AuthContext] starting group_members query...');
