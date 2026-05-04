@@ -795,13 +795,14 @@ export function FolderView() {
           <SheetHeader className="flex-shrink-0">
             <SheetTitle>Rediger perm</SheetTitle>
           </SheetHeader>
-          <div className="flex flex-col gap-4 mt-4">
+          <div className="flex flex-col gap-4 mt-4 overflow-y-auto">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">Tittel</label>
               <Input
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 placeholder="Permens tittel"
+                onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
               />
             </div>
             <div className="flex flex-col gap-1.5">
