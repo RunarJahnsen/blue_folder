@@ -55,6 +55,9 @@ export function AddSongModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showFetchWarning, setShowFetchWarning] = useState(false);
+  const [warningSongId, setWarningSongId] = useState<string | null>(null);
+  const [manualContent, setManualContent] = useState('');
+  const [isSavingManual, setIsSavingManual] = useState(false);
 
   useEffect(() => {
     if (activeTab !== 'favorites' || !groupId) return;
@@ -205,7 +208,10 @@ export function AddSongModal({
       } catch {}
 
       await createFolderSongEntry(newSong.id, contentFetched);
-      if (!contentFetched) setShowFetchWarning(true);
+      if (!contentFetched) {
+        setWarningSongId(newSong.id);
+        setShowFetchWarning(true);
+      }
     } catch {
       setError('En feil oppstod.');
     }
@@ -251,8 +257,19 @@ export function AddSongModal({
     setIsLoading(false);
   };
 
+  const handleSaveManualContent = async () => {
+    if (!warningSongId || !manualContent.trim()) return;
+    setIsSavingManual(true);
+    await supabase.from('songs').update({ content: manualContent.trim() }).eq('id', warningSongId);
+    setIsSavingManual(false);
+    handleClose();
+  };
+
   const handleClose = () => {
     setShowFetchWarning(false);
+    setWarningSongId(null);
+    setManualContent('');
+    setIsSavingManual(false);
     setActiveTab('url');
     setGroupFavorites([]);
     setFavoritesSearch('');
@@ -309,8 +326,27 @@ export function AddSongModal({
             <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
               Kunne ikke hente sangtekst automatisk. Du kan legge inn teksten manuelt eller prøve igjen fra sangoversikten.
             </div>
-            <div className="flex justify-end">
-              <Button onClick={handleClose}>Lukk</Button>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Sangtekst <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+              <textarea
+                className="w-full min-w-0 rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-base transition-colors outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-0 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                rows={8}
+                placeholder="Lim inn sangteksten her..."
+                value={manualContent}
+                onChange={(e) => setManualContent(e.target.value)}
+                disabled={isSavingManual}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={handleClose} disabled={isSavingManual}>
+                Lukk
+              </Button>
+              <Button
+                onClick={handleSaveManualContent}
+                disabled={isSavingManual || !manualContent.trim()}
+              >
+                {isSavingManual ? 'Lagrer…' : 'Lagre tekst'}
+              </Button>
             </div>
           </div>
         ) : (
