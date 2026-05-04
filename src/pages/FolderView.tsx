@@ -23,6 +23,18 @@ interface SongWithEntry extends FolderSongEntry {
   songs?: Song;
 }
 
+async function pgHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return {
+    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
+
 export function FolderView() {
   const { groupId, folderId } = useParams();
   const navigate = useNavigate();
@@ -42,10 +54,7 @@ export function FolderView() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    console.log('[FolderView] useEffect triggered', { groupId, folderId });
-
     if (!groupId || !folderId) {
-      console.log('[FolderView] early return: missing groupId or folderId');
       setError('Mangler gruppe-id eller folder-id.');
       setIsLoading(false);
       return;
@@ -55,50 +64,40 @@ export function FolderView() {
     setError('');
 
     (async () => {
-      console.log('[FolderView] async IIFE started');
       try {
-        console.log('[FolderView] about to query folders...');
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/folders?id=eq.${folderId}`,
-          {
-            headers: {
-              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            },
-          }
-        );
-        const rawData = await res.json();
-        console.log('[FolderView] raw fetch result:', rawData);
-        const folderData = Array.isArray(rawData) ? (rawData[0] as Folder) : null;
+        const headers = await pgHeaders();
+        const base = BASE();
+
+        const folderRes = await fetch(`${base}/rest/v1/folders?id=eq.${folderId}`, { headers });
+        const folderRaw = await folderRes.json();
+        const folderData = Array.isArray(folderRaw) ? (folderRaw[0] as Folder) : null;
         if (!folderData) {
-          console.error('[FolderView] no folder found in raw fetch result');
           setError('Kunne ikke hente permen. Sjekk at den finnes.');
           setIsLoading(false);
           return;
         }
-
         setFolder(folderData);
 
-        const { data: entriesData, error: entriesError } = await supabase
-          .from('folder_song_entries')
-          .select('id, folder_id, song_id, state, position, played_at, songs(id, title, url, content)')
-          .eq('folder_id', folderId)
-          .order('state', { ascending: true })
-          .order('position', { ascending: true });
-
-        if (entriesError) {
-          console.error('[FolderView] folder_song_entries query error:', entriesError);
-          setError('Kunne ikke hente sanger.');
+        const entriesRes = await fetch(
+          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,url,content)&order=state.asc,position.asc`,
+          { headers }
+        );
+        const entriesRaw = await entriesRes.json();
+        if (Array.isArray(entriesRaw)) {
+          setEntries(entriesRaw as unknown as SongWithEntry[]);
+        } else {
+          console.error('[FolderView] folder_song_entries fetch error:', entriesRaw);
           setEntries([]);
-        } else if (entriesData) {
-          setEntries(entriesData as unknown as SongWithEntry[]);
         }
 
-        const { data: favoritesData } = await supabase
-          .from('favorites')
-          .select('id, song_id, group_id, created_at')
-          .eq('group_id', groupId);
-        if (favoritesData) setFavorites(favoritesData as Favorite[]);
+        const favRes = await fetch(
+          `${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at`,
+          { headers }
+        );
+        const favRaw = await favRes.json();
+        if (Array.isArray(favRaw)) {
+          setFavorites(favRaw as Favorite[]);
+        }
       } catch (err) {
         console.error('[FolderView] unexpected error:', err);
         setError('En feil oppstod. Prøv igjen.');
@@ -126,15 +125,17 @@ export function FolderView() {
         { event: 'INSERT', schema: 'public', table: 'folder_song_entries', filter: `folder_id=eq.${folderId}` },
         async (payload) => {
           const newRow = payload.new as FolderSongEntry;
-          const { data } = await supabase
-            .from('folder_song_entries')
-            .select('id, folder_id, song_id, state, position, played_at, songs(id, title, url, content)')
-            .eq('id', newRow.id)
-            .single();
+          const headers = await pgHeaders();
+          const res = await fetch(
+            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,url,content)`,
+            { headers }
+          );
+          const raw = await res.json();
+          const data = Array.isArray(raw) ? raw[0] : null;
           if (data) {
             setEntries((prev) => {
-              if (prev.some((e) => e.id === (data as unknown as SongWithEntry).id)) return prev;
-              return [...prev, data as unknown as SongWithEntry];
+              if (prev.some((e) => e.id === (data as SongWithEntry).id)) return prev;
+              return [...prev, data as SongWithEntry];
             });
           }
         }
@@ -215,49 +216,57 @@ export function FolderView() {
 
   const handleToggleFavorite = async (songId: string) => {
     if (!groupId) return;
+    const headers = await pgHeaders();
+    const base = BASE();
     if (favoriteSongIds.has(songId)) {
-      const { error } = await supabase
-        .from('favorites')
-        .delete()
-        .eq('group_id', groupId)
-        .eq('song_id', songId);
-      if (error) return;
+      const res = await fetch(
+        `${base}/rest/v1/favorites?group_id=eq.${groupId}&song_id=eq.${songId}`,
+        { method: 'DELETE', headers }
+      );
+      if (!res.ok) return;
       setFavorites((prev) => prev.filter((f) => f.song_id !== songId));
     } else {
-      const { data, error } = await supabase
-        .from('favorites')
-        .insert({ group_id: groupId, song_id: songId })
-        .select()
-        .single<Favorite>();
-      if (error || !data) return;
-      setFavorites((prev) => [...prev, data]);
+      const res = await fetch(`${base}/rest/v1/favorites`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ group_id: groupId, song_id: songId }),
+      });
+      if (!res.ok) return;
+      const raw = await res.json();
+      const data = Array.isArray(raw) ? raw[0] : raw;
+      if (data) setFavorites((prev) => [...prev, data as Favorite]);
     }
   };
 
   const handlePlayNext = async () => {
     if (!folderId) return;
     const nextQueued = queuedEntries[0];
+    const headers = await pgHeaders();
+    const base = BASE();
 
     if (currentEntry) {
-      const { error } = await supabase
-        .from('folder_song_entries')
-        .update({ state: 'played', played_at: new Date().toISOString() })
-        .eq('id', currentEntry.id);
-      if (error) return;
+      const res = await fetch(`${base}/rest/v1/folder_song_entries?id=eq.${currentEntry.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ state: 'played', played_at: new Date().toISOString() }),
+      });
+      if (!res.ok) return;
     }
 
     if (nextQueued) {
-      const { error } = await supabase
-        .from('folder_song_entries')
-        .update({ state: 'current' })
-        .eq('id', nextQueued.id);
-      if (error) return;
+      const res = await fetch(`${base}/rest/v1/folder_song_entries?id=eq.${nextQueued.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ state: 'current' }),
+      });
+      if (!res.ok) return;
     }
 
-    await supabase
-      .from('folders')
-      .update({ current_queue_item_id: nextQueued?.id ?? null })
-      .eq('id', folderId);
+    await fetch(`${base}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ current_queue_item_id: nextQueued?.id ?? null }),
+    });
 
     setEntries((prev) =>
       prev.map((e) => {
@@ -275,12 +284,13 @@ export function FolderView() {
 
   const handleApproveSuggestion = async (entry: SongWithEntry) => {
     const newPosition = maxPosition + 1;
-    const { error } = await supabase
-      .from('folder_song_entries')
-      .update({ state: 'queued', position: newPosition })
-      .eq('id', entry.id);
-    if (error) return;
-
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ state: 'queued', position: newPosition }),
+    });
+    if (!res.ok) return;
     setEntries((prev) =>
       prev.map((e) =>
         e.id === entry.id ? { ...e, state: 'queued' as const, position: newPosition } : e
@@ -289,12 +299,13 @@ export function FolderView() {
   };
 
   const handleRejectSuggestion = async (entryId: string) => {
-    const { error } = await supabase
-      .from('folder_song_entries')
-      .update({ state: 'removed' })
-      .eq('id', entryId);
-    if (error) return;
-
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entryId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ state: 'removed' }),
+    });
+    if (!res.ok) return;
     setEntries((prev) =>
       prev.map((e) => (e.id === entryId ? { ...e, state: 'removed' as const } : e))
     );
@@ -302,36 +313,42 @@ export function FolderView() {
 
   const handleSetStatus = async (status: Folder['status']) => {
     if (!folderId) return;
-    const { error } = await supabase
-      .from('folders')
-      .update({ status })
-      .eq('id', folderId);
-    if (error) return;
-
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) return;
     setFolder((prev) => (prev ? { ...prev, status } : prev));
   };
 
   const handlePlayNow = async (entry: SongWithEntry) => {
     if (!folderId) return;
+    const headers = await pgHeaders();
+    const base = BASE();
 
     if (currentEntry) {
-      const { error } = await supabase
-        .from('folder_song_entries')
-        .update({ state: 'played', played_at: new Date().toISOString() })
-        .eq('id', currentEntry.id);
-      if (error) return;
+      const res = await fetch(`${base}/rest/v1/folder_song_entries?id=eq.${currentEntry.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ state: 'played', played_at: new Date().toISOString() }),
+      });
+      if (!res.ok) return;
     }
 
-    const { error } = await supabase
-      .from('folder_song_entries')
-      .update({ state: 'current' })
-      .eq('id', entry.id);
-    if (error) return;
+    const res = await fetch(`${base}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ state: 'current' }),
+    });
+    if (!res.ok) return;
 
-    await supabase
-      .from('folders')
-      .update({ current_queue_item_id: entry.id })
-      .eq('id', folderId);
+    await fetch(`${base}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ current_queue_item_id: entry.id }),
+    });
 
     setEntries((prev) =>
       prev.map((e) => {
@@ -347,13 +364,13 @@ export function FolderView() {
 
   const handleMoveToBottom = async (entry: SongWithEntry) => {
     const newPosition = maxPosition + 1;
-
-    const { error } = await supabase
-      .from('folder_song_entries')
-      .update({ state: 'queued', position: newPosition })
-      .eq('id', entry.id);
-    if (error) return;
-
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ state: 'queued', position: newPosition }),
+    });
+    if (!res.ok) return;
     setEntries((prev) =>
       prev.map((e) => (e.id === entry.id ? { ...e, state: 'queued' as const, position: newPosition } : e))
     );
@@ -364,13 +381,13 @@ export function FolderView() {
       ? Math.min(...queuedEntries.map((e) => e.position || 0))
       : 0;
     const newPosition = minPosition - 1;
-
-    const { error } = await supabase
-      .from('folder_song_entries')
-      .update({ state: 'queued', position: newPosition })
-      .eq('id', entry.id);
-    if (error) return;
-
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ state: 'queued', position: newPosition }),
+    });
+    if (!res.ok) return;
     setEntries((prev) =>
       prev.map((e) => (e.id === entry.id ? { ...e, state: 'queued' as const, position: newPosition } : e))
     );
@@ -378,21 +395,24 @@ export function FolderView() {
 
   const handleSetMode = async (mode: Folder['mode']) => {
     if (!folderId) return;
-    const { error } = await supabase
-      .from('folders')
-      .update({ mode })
-      .eq('id', folderId);
-    if (error) return;
-
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ mode }),
+    });
+    if (!res.ok) return;
     setFolder((prev) => (prev ? { ...prev, mode } : prev));
   };
 
   const handleRemoveFromQueue = async (entryId: string) => {
-    const { error } = await supabase
-      .from('folder_song_entries')
-      .update({ state: 'removed' })
-      .eq('id', entryId);
-    if (error) return;
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entryId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ state: 'removed' }),
+    });
+    if (!res.ok) return;
     setEntries((prev) => prev.map((e) => e.id === entryId ? { ...e, state: 'removed' as const } : e));
   };
 
@@ -405,12 +425,14 @@ export function FolderView() {
   const handleSaveFolder = async () => {
     if (!folderId || !editTitle.trim()) return;
     setIsSaving(true);
-    const { error } = await supabase
-      .from('folders')
-      .update({ title: editTitle.trim(), date: editDate })
-      .eq('id', folderId);
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ title: editTitle.trim(), date: editDate }),
+    });
     setIsSaving(false);
-    if (error) return;
+    if (!res.ok) return;
     setFolder((prev) => prev ? { ...prev, title: editTitle.trim(), date: editDate } : prev);
     setIsEditSheetOpen(false);
   };
@@ -418,10 +440,18 @@ export function FolderView() {
   const handleDeleteFolder = async () => {
     if (!folderId || !groupId) return;
     setIsDeleting(true);
-    await supabase.from('folder_song_entries').delete().eq('folder_id', folderId);
-    const { error } = await supabase.from('folders').delete().eq('id', folderId);
+    const headers = await pgHeaders();
+    const base = BASE();
+    await fetch(`${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}`, {
+      method: 'DELETE',
+      headers,
+    });
+    const res = await fetch(`${base}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'DELETE',
+      headers,
+    });
     setIsDeleting(false);
-    if (error) return;
+    if (!res.ok) return;
     navigate(`/${groupId}`);
   };
 
@@ -429,15 +459,14 @@ export function FolderView() {
     if (!groupId || !folderId) return;
     (async () => {
       try {
-        const { data: entriesData } = await supabase
-          .from('folder_song_entries')
-          .select('id, folder_id, song_id, state, position, played_at, songs(id, title, url, content)')
-          .eq('folder_id', folderId)
-          .order('state', { ascending: true })
-          .order('position', { ascending: true });
-
-        if (entriesData) {
-          setEntries(entriesData as unknown as SongWithEntry[]);
+        const headers = await pgHeaders();
+        const res = await fetch(
+          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,url,content)&order=state.asc,position.asc`,
+          { headers }
+        );
+        const raw = await res.json();
+        if (Array.isArray(raw)) {
+          setEntries(raw as unknown as SongWithEntry[]);
         }
       } catch (err) {
         console.error('Failed to refresh entries:', err);

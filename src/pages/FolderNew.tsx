@@ -27,6 +27,18 @@ const COPY_STRATEGY_STATES: Record<string, string[]> = {
 
 type SourceFolder = { id: string; title: string; date: string };
 
+async function pgHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return {
+    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
+
 export function FolderNew() {
   const { groupId } = useParams();
   const navigate = useNavigate();
@@ -48,15 +60,15 @@ export function FolderNew() {
     if (copyMode !== 'copy' || !groupId) return;
     setIsFetchingFolders(true);
     (async () => {
-      const { data, error: foldersError } = await supabase
-        .from('folders')
-        .select('id, title, date')
-        .eq('group_id', groupId)
-        .order('date', { ascending: false });
-      if (foldersError) console.error('[FolderNew] folders select error:', foldersError);
-      if (data && data.length > 0) {
-        setSourceFolders(data as SourceFolder[]);
-        setSelectedSourceId(data[0].id);
+      const headers = await pgHeaders();
+      const res = await fetch(
+        `${BASE()}/rest/v1/folders?group_id=eq.${groupId}&select=id,title,date&order=date.desc`,
+        { headers }
+      );
+      const raw = await res.json();
+      if (Array.isArray(raw) && raw.length > 0) {
+        setSourceFolders(raw as SourceFolder[]);
+        setSelectedSourceId(raw[0].id);
       }
       setIsFetchingFolders(false);
     })();
@@ -96,23 +108,34 @@ export function FolderNew() {
 
     setIsLoading(true);
 
+    const headers = await pgHeaders();
+    const base = BASE();
+
     const folderData = {
       group_id: groupId,
       title: title.trim(),
       date,
-      status: 'planned' as const,
+      status: 'planned',
       mode,
       ...(sessionId ? { host_session_id: sessionId } : {}),
     };
 
-    const { data: newFolder, error: folderError } = await supabase
-      .from('folders')
-      .insert([folderData] as any)
-      .select('id')
-      .single<{ id: string }>();
+    const folderRes = await fetch(`${base}/rest/v1/folders`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify(folderData),
+    });
 
-    if (folderError || !newFolder) {
-      console.error('[FolderNew] folder insert error:', folderError);
+    if (!folderRes.ok) {
+      console.error('[FolderNew] folder insert error:', await folderRes.text());
+      setError('Kunne ikke opprette permen. Prøv igjen.');
+      setIsLoading(false);
+      return;
+    }
+
+    const folderRaw = await folderRes.json();
+    const newFolder = Array.isArray(folderRaw) ? (folderRaw[0] as { id: string }) : null;
+    if (!newFolder) {
       setError('Kunne ikke opprette permen. Prøv igjen.');
       setIsLoading(false);
       return;
@@ -120,23 +143,26 @@ export function FolderNew() {
 
     if (copyMode === 'copy' && selectedSourceId) {
       const states = COPY_STRATEGY_STATES[copyStrategy];
-      const { data: sourceEntries, error: entriesError } = await supabase
-        .from('folder_song_entries')
-        .select('song_id, position')
-        .eq('folder_id', selectedSourceId)
-        .in('state', states);
-      if (entriesError) console.error('[FolderNew] folder_song_entries select error:', entriesError);
+      const entriesRes = await fetch(
+        `${base}/rest/v1/folder_song_entries?folder_id=eq.${selectedSourceId}&state=in.(${states.join(',')})&select=song_id,position`,
+        { headers }
+      );
+      const sourceEntries = await entriesRes.json();
 
-      if (sourceEntries && sourceEntries.length > 0) {
-        await supabase.from('folder_song_entries').insert(
-          sourceEntries.map((e) => ({
-            group_id: groupId,
-            folder_id: newFolder.id,
-            song_id: e.song_id,
-            state: 'queued',
-            position: e.position,
-          }))
-        );
+      if (Array.isArray(sourceEntries) && sourceEntries.length > 0) {
+        await fetch(`${base}/rest/v1/folder_song_entries`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(
+            sourceEntries.map((e: { song_id: string; position: number }) => ({
+              group_id: groupId,
+              folder_id: newFolder.id,
+              song_id: e.song_id,
+              state: 'queued',
+              position: e.position,
+            }))
+          ),
+        });
       }
     }
 
