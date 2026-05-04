@@ -1,111 +1,106 @@
 # Progress
 
 ## Pågående oppgave
-Slice 8c — Tagging av sanger. Egendefinerte tagger per gruppe for organisering og søk.
+Slice 9a — Supabase Auth og brukerregistrering. Implementert og ferdig.
 
 ## Analyse
 
-### 1. Datamodell — separate tabeller (ikke JSONB)
+### 1. Filer som opprettes og endres
 
-**Valg: `tags`-tabell + `song_tags`-koblingstabell.**
+**Nye filer:**
+| Fil | Hva |
+|-----|-----|
+| `src/pages/Login.tsx` | Login-side (`/login`): brukernavn + passord |
+| `src/pages/GroupSelect.tsx` | Gruppevalg etter login hvis bruker tilhører flere grupper |
+| `src/pages/admin/UserAdmin.tsx` | Admin-side for brukeradmin (`/:groupId/admin/users`) |
+| `src/context/AuthContext.tsx` | React Context som eksponerer session, user, memberships |
+| `src/hooks/useAuth.ts` | Hook som leser fra AuthContext |
+| `supabase/functions/create-user/index.ts` | Edge Function for brukeroppretting |
 
-JSONB/TEXT[]-array på `songs` er enklere å implementere, men har to kritiske svakheter:
-- Autocomplete-kravet krever en liste over alle tagger i gruppa. Med JSONB må man aggregere på tvers av alle sanger med `UNNEST` + `DISTINCT` — ineffektivt og klønete.
-- Omdøping eller sletting av en tag globalt er ikke mulig uten å løpe gjennom alle sanger.
+**Endrede filer:**
+| Fil | Hva endres |
+|-----|------------|
+| `src/App.tsx` | Legg til `/login`, `/group-select`, `/:groupId/admin/users`. Pakk beskyttede ruter i `<ProtectedRoute>` |
+| `src/lib/types.ts` | Legg til `GroupMember`-interface |
+| `src/pages/FolderList.tsx` | Legg til logg ut-knapp + lenke til brukeradmin (kun synlig for admin) |
+| `src/main.tsx` | Wrap med `<AuthProvider>` |
+| `supabase-schema.sql` | Legg til `group_members`-tabell |
 
-Med egne tabeller er det enkelt:
-- `SELECT * FROM tags WHERE group_id = ?` gir alle tagger i gruppa — perfekt for autocomplete.
-- `UNIQUE(group_id, name)` sikrer ingen duplikater.
-- `group_id` på begge tabeller følger prosjektkonvensjonen.
+**Slettede filer:**
+- `src/pages/GroupAccess.tsx` — slettet (godkjent av bruker)
 
-**SQL (kjøres i Supabase SQL-editor):**
+**Uendrede filer (eksplisitt):**
+- `src/hooks/useSession.ts` — beholdes, `host_session_id`-logikk i FolderView uendret
+- `src/pages/FolderView.tsx` — ingen endringer
+
+---
+
+### 2. Justeringer fra godkjenning
+
+1. **GroupAccess slettes** — filen er ikke lenger i bruk
+2. **Session restore**: `GroupSelect` og `Login` håndterer begge tilfellet der session
+   gjenopprettes ved refresh — henter alltid memberships fra `group_members` og redirecter
+   tilsvarende (1 gruppe → direkte, flere → GroupSelect)
+
+---
+
+### 3. Auth-state-arkitektur
+
+`AuthContext.tsx` initialiseres i `main.tsx` (wrapper rundt `<App>`).
+
+Sekvens for session-restore (refresh):
+1. `getSession()` hentes
+2. Memberships hentes (`group_members` JOIN `groups`)
+3. `session` + `memberships` settes — React batcher disse til én render
+4. `isLoading = false`
+5. `Login.tsx` / `GroupSelect.tsx` kjører redirect-logikk i `useEffect`
+
+`ProtectedRoute` returnerer `null` mens `isLoading` er true — ingen blink til login-siden.
+
+---
+
+### group_members SQL (kjøres manuelt i Supabase)
 ```sql
-CREATE TABLE tags (
+CREATE TABLE group_members (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
+  username TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(group_id, name)
+  UNIQUE(user_id, group_id)
 );
-
-CREATE TABLE song_tags (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  song_id UUID NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
-  tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  UNIQUE(song_id, tag_id)
-);
-
-CREATE INDEX idx_tags_group_id ON tags(group_id);
-CREATE INDEX idx_song_tags_song_id ON song_tags(song_id);
-CREATE INDEX idx_song_tags_tag_id ON song_tags(tag_id);
-CREATE INDEX idx_song_tags_group_id ON song_tags(group_id);
+CREATE INDEX idx_group_members_user_id ON group_members(user_id);
+CREATE INDEX idx_group_members_group_id ON group_members(group_id);
 ```
 
-**Datahenting:** Supabase-join i sangspørringen:
-```ts
-supabase.from('songs').select('*, song_tags(id, tag_id, tags(id, name))')
-```
-
-Ved lagring av tags:
-1. Finn/opprett tagger i `tags`-tabellen (upsert med `onConflict: 'group_id,name'`)
-2. Slett eksisterende `song_tags` for sangen
-3. Sett inn nye `song_tags`-rader
-
 ---
 
-### 2. UI-plassering — i rediger-sheeten i SongList
-
-Tagging legges inn **i rediger-sheeten** (SongList.tsx), under de eksisterende feltene. Dette er det naturlige stedet siden det er der alle sangegenskaper redigeres.
-
-I sanglisten vises tags som små badges/chips per sang-rad for oversikt.
-
-Over sanglisten legges det til et tag-filter: klikk på en tag → vis bare sanger med den taggen. Flere tagger = union (ELLER), ikke intersection — enklere og mer nyttig i praksis.
-
-I "Alle sanger"-fanen i AddSongModal: samme tag-filter-chips over listen for å begrense utvalget.
-
----
-
-### 3. Autocomplete uten tunge biblioteker
-
-**Enkel egenlaget løsning med React-state:**
-
-1. Last alle gruppens tagger ved mount: `allTags: Tag[]`
-2. I edit-sheeten: ett tekst-input-felt for ny tag
-3. Mens brukeren skriver → `useMemo` filtrerer `allTags` på input-tekst, ekskluderer allerede valgte tagger
-4. Forslag vises som klikkbare chips rett under inputfeltet (betinget rendering)
-5. Klikk på forslag → legg til tag, tøm input
-6. Enter → opprett ny tag hvis ingen eksakt match finnes, ellers velg første treff
-7. Valgte tagger vises som chips med ×-knapp over inputfeltet
-
-Ingen bibliotek nødvendig. Maks ~30 linjer logikk.
-
----
-
-### Filer som endres/opprettes
-
-| Fil | Endring |
-|-----|---------|
-| `supabase-schema.sql` | Legg til `tags`- og `song_tags`-tabeller med indekser |
-| `src/lib/types.ts` | Legg til `Tag`, `SongTag`-interfaces og Database-mapping |
-| `src/pages/SongList.tsx` | Tag-henting, badge-visning per sang, tag-filter, tag-editor i sheet |
-| `src/components/AddSongModal.tsx` | Tag-filter i "Alle sanger"-fanen |
-
-Ingen nye React-filer.
-
----
-
-### Avveininger
-- Tag-filter bruker ELLER-logikk (ikke OG) — enklere for MVP, dekker de fleste brukstilfeller
-- Tags er ikke case-sensitive (normaliseres til lowercase ved lagring)
-- Ingen global tag-administrasjon (omdøp/slett alle) i MVP — kan legges til senere
-- `song_tags` slettes og settes inn på nytt ved lagring (ikke diff) — enklere kode, akseptabel ytelse for MVP-skala
+### Hva som IKKE er med i denne slicen
+- RLS → 9b
+- `host_session_id` erstattes → 9b
+- Gjesteinvitasjon → 9c
+- `access_code` fjernes → 9b
 
 ## Gjort
-- types.ts: lagt til Tag, SongTagEntry, SongWithTags
-- SongList.tsx: tags-henting, filter-chips, badges, tag-editor med autocomplete i sheet
-- AddSongModal.tsx: tag-filter chips i "Alle sanger"-fanen, tags vises på sangene
-- supabase-schema.sql: tags og song_tags tabeller med indekser dokumentert
+- [x] `supabase-schema.sql` — `group_members`-tabell med `username`-kolonne
+- [x] `src/lib/types.ts` — `GroupMember`-interface (inkl. `username` + nested `groups`)
+- [x] `src/context/AuthContext.tsx` — `AuthProvider` + `useAuth` + `fetchMemberships`
+- [x] `src/hooks/useAuth.ts` — re-eksporterer `useAuth` fra AuthContext
+- [x] `src/main.tsx` — wrapped med `<AuthProvider>`
+- [x] `src/pages/Login.tsx` — login-skjema + redirect-logikk (fresh login + session restore)
+- [x] `src/pages/GroupSelect.tsx` — gruppevalg + redirect ved 1 gruppe (session restore)
+- [x] `supabase/functions/create-user/index.ts` — Edge Function med admin-sjekk
+- [x] `src/pages/admin/UserAdmin.tsx` — opprett bruker + vis medlemsliste
+- [x] `src/App.tsx` — `ProtectedRoute` + alle nye ruter
+- [x] `src/pages/FolderList.tsx` — logg ut-knapp + Brukere-lenke for admins
+- [x] `src/pages/GroupAccess.tsx` — slettet
 
 ## Gjenstår
-(ingenting)
+(alt gjort)
+
+## Neste steg
+- Kjør `group_members` SQL manuelt i Supabase dashboard
+- Deploy `create-user` Edge Function (`supabase functions deploy create-user`)
+- Opprett første admin-bruker manuelt i Supabase Auth-panelet og legg til rad i `group_members`
+- Slice 9b: RLS, `host_session_id` erstattes, `access_code` fjernes

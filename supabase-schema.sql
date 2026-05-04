@@ -95,5 +95,18 @@ ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE room_song_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
 
+-- group_members table
+CREATE TABLE group_members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, group_id)
+);
+CREATE INDEX idx_group_members_user_id ON group_members(user_id);
+CREATE INDEX idx_group_members_group_id ON group_members(group_id);
+
 -- Seed data for testing
 INSERT INTO groups (name, access_code) VALUES ('Test Group', 'test123');

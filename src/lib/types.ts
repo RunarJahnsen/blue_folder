@@ -71,6 +71,16 @@ export interface SongWithTags extends Song {
   song_tags?: SongTagEntry[];
 }
 
+export interface GroupMember {
+  id: string;
+  user_id: string;
+  group_id: string;
+  username: string;
+  role: 'admin' | 'member';
+  created_at: string;
+  groups?: { id: string; name: string };
+}
+
 export type Database = {
   public: {
     Tables: {

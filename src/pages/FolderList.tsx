@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import type { Folder } from '@/lib/types';
 import {
@@ -14,6 +15,7 @@ import {
 export function FolderList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const { signOut, isAdmin } = useAuth();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -93,12 +95,26 @@ export function FolderList() {
               Se alle permer i gruppen og opprett en ny samling.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isAdmin(groupId!) && (
+              <Button variant="outline" onClick={() => navigate(`/${groupId}/admin/users`)}>
+                Brukere
+              </Button>
+            )}
             <Button variant="outline" onClick={() => navigate(`/${groupId}/songs`)}>
               Sanger
             </Button>
             <Button onClick={() => navigate(`/${groupId}/folders/new`)}>
               Opprett perm
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await signOut();
+                navigate('/login', { replace: true });
+              }}
+            >
+              Logg ut
             </Button>
           </div>
         </div>
