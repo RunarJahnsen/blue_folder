@@ -171,22 +171,26 @@ export function SongList() {
     if (error) { setIsSaving(false); return; }
 
     let savedTags: Tag[] = [];
+    console.log('Saving tags:', editTagNames, 'for song:', editingSong.id);
     if (editTagNames.length > 0) {
-      const { data: upsertedTags } = await supabase
+      const { data: upsertedTags, error: tagsError } = await supabase
         .from('tags')
         .upsert(
           editTagNames.map(name => ({ group_id: groupId, name })),
           { onConflict: 'group_id,name' }
         )
         .select();
+      console.log('Tags upsert result:', tagsError);
       if (upsertedTags) savedTags = upsertedTags as Tag[];
     }
 
-    await supabase.from('song_tags').delete().eq('song_id', editingSong.id);
+    const { error: deleteError } = await supabase.from('song_tags').delete().eq('song_id', editingSong.id);
+    console.log('song_tags delete result:', deleteError);
     if (savedTags.length > 0) {
-      await supabase.from('song_tags').insert(
+      const { error: insertError } = await supabase.from('song_tags').insert(
         savedTags.map(tag => ({ song_id: editingSong.id, tag_id: tag.id, group_id: groupId }))
       );
+      console.log('song_tags insert result:', insertError);
     }
 
     const newSongTags: SongTagEntry[] = savedTags.map(tag => ({
