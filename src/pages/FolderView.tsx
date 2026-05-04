@@ -58,15 +58,20 @@ export function FolderView() {
       console.log('[FolderView] async IIFE started');
       try {
         console.log('[FolderView] about to query folders...');
-        const { data: folderData, error: folderError } = await supabase
-          .from('folders')
-          .select('id, group_id, title, date, status, mode, current_queue_item_id, host_session_id')
-          .eq('id', folderId)
-          .eq('group_id', groupId)
-          .single<Folder>();
-
-        if (folderError || !folderData) {
-          console.error('[FolderView] folders query error:', folderError);
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/folders?id=eq.${folderId}`,
+          {
+            headers: {
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+          }
+        );
+        const rawData = await res.json();
+        console.log('[FolderView] raw fetch result:', rawData);
+        const folderData = Array.isArray(rawData) ? (rawData[0] as Folder) : null;
+        if (!folderData) {
+          console.error('[FolderView] no folder found in raw fetch result');
           setError('Kunne ikke hente permen. Sjekk at den finnes.');
           setIsLoading(false);
           return;
