@@ -61,6 +61,7 @@ export function FolderView() {
           .single<Folder>();
 
         if (folderError || !folderData) {
+          console.error('[FolderView] folders query error:', folderError);
           setError('Kunne ikke hente permen. Sjekk at den finnes.');
           setIsLoading(false);
           return;
@@ -76,6 +77,7 @@ export function FolderView() {
           .order('position', { ascending: true });
 
         if (entriesError) {
+          console.error('[FolderView] folder_song_entries query error:', entriesError);
           setError('Kunne ikke hente sanger.');
           setEntries([]);
         } else if (entriesData) {
@@ -88,6 +90,7 @@ export function FolderView() {
           .eq('group_id', groupId);
         if (favoritesData) setFavorites(favoritesData as Favorite[]);
       } catch (err) {
+        console.error('[FolderView] unexpected error:', err);
         setError('En feil oppstod. Prøv igjen.');
       } finally {
         setIsLoading(false);

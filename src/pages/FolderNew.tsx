@@ -48,11 +48,12 @@ export function FolderNew() {
     if (copyMode !== 'copy' || !groupId) return;
     setIsFetchingFolders(true);
     (async () => {
-      const { data } = await supabase
+      const { data, error: foldersError } = await supabase
         .from('folders')
         .select('id, title, date')
         .eq('group_id', groupId)
         .order('date', { ascending: false });
+      if (foldersError) console.error('[FolderNew] folders select error:', foldersError);
       if (data && data.length > 0) {
         setSourceFolders(data as SourceFolder[]);
         setSelectedSourceId(data[0].id);
@@ -111,6 +112,7 @@ export function FolderNew() {
       .single<{ id: string }>();
 
     if (folderError || !newFolder) {
+      console.error('[FolderNew] folder insert error:', folderError);
       setError('Kunne ikke opprette permen. Prøv igjen.');
       setIsLoading(false);
       return;
@@ -118,11 +120,12 @@ export function FolderNew() {
 
     if (copyMode === 'copy' && selectedSourceId) {
       const states = COPY_STRATEGY_STATES[copyStrategy];
-      const { data: sourceEntries } = await supabase
+      const { data: sourceEntries, error: entriesError } = await supabase
         .from('folder_song_entries')
         .select('song_id, position')
         .eq('folder_id', selectedSourceId)
         .in('state', states);
+      if (entriesError) console.error('[FolderNew] folder_song_entries select error:', entriesError);
 
       if (sourceEntries && sourceEntries.length > 0) {
         await supabase.from('folder_song_entries').insert(
