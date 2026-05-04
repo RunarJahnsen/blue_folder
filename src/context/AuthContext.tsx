@@ -18,6 +18,8 @@ async function fetchMemberships(_userId: string): Promise<GroupMember[]> {
   console.log('[AuthContext] fetchMemberships step 1');
   try {
     console.log('[AuthContext] fetchMemberships step 2');
+    console.log('[AuthContext] supabase key present:', !!(supabase as unknown as { supabaseKey?: string }).supabaseKey);
+    console.log('[AuthContext] supabase key prefix:', (supabase as unknown as { supabaseKey?: string }).supabaseKey?.slice(0, 20));
     const result = await supabase.from('group_members').select('*');
     console.log('[AuthContext] fetchMemberships step 3, result:', result);
   } catch (e) {
