@@ -20,9 +20,22 @@ async function fetchMemberships(userId: string): Promise<GroupMember[]> {
   try {
     console.log('[AuthContext] starting group_members query...');
     console.log('[AuthContext] supabase url:', (supabase as unknown as { supabaseUrl?: string }).supabaseUrl ?? 'missing');
-    const testResult = supabase.from('group_members').select('*').eq('user_id', userId);
-    console.log('[AuthContext] query object:', typeof testResult, Object.keys(testResult));
-    const { data, error } = await testResult;
+    const supabaseUrl = (supabase as unknown as { supabaseUrl: string }).supabaseUrl;
+    const supabaseKey = (supabase as unknown as { supabaseKey: string }).supabaseKey;
+    const accessToken = (await supabase.auth.getSession()).data.session?.access_token;
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/group_members?user_id=eq.${userId}`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const json = await response.json();
+    console.log('[AuthContext] raw fetch result:', json);
+    const data = Array.isArray(json) ? json : null;
+    const error = Array.isArray(json) ? null : json;
     console.log('[AuthContext] group_members query done — data:', data, 'error:', error);
 
     if (error) {
