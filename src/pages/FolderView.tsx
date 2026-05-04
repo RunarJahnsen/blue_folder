@@ -374,6 +374,15 @@ export function FolderView() {
     setFolder((prev) => (prev ? { ...prev, mode } : prev));
   };
 
+  const handleRemoveFromQueue = async (entryId: string) => {
+    const { error } = await supabase
+      .from('folder_song_entries')
+      .update({ state: 'removed' })
+      .eq('id', entryId);
+    if (error) return;
+    setEntries((prev) => prev.map((e) => e.id === entryId ? { ...e, state: 'removed' as const } : e));
+  };
+
   const handleOpenEdit = () => {
     setEditTitle(folder?.title ?? '');
     setEditDate(folder?.date ?? '');
@@ -647,7 +656,7 @@ export function FolderView() {
                         </button>
                       </div>
                       {showHostControls && (
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-2 justify-end flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => handleMoveToBottom(entry)}>
                             Flytt nederst
                           </Button>
@@ -656,6 +665,13 @@ export function FolderView() {
                           </Button>
                           <Button size="sm" onClick={() => handlePlayNow(entry)}>
                             Spill nå
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => handleRemoveFromQueue(entry.id)}
+                          >
+                            Fjern
                           </Button>
                         </div>
                       )}

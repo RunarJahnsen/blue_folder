@@ -5,6 +5,13 @@ import { supabase } from '@/lib/supabase';
 import type { Favorite, Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 
 export function SongList() {
   const { groupId } = useParams();
@@ -15,6 +22,12 @@ export function SongList() {
   const [error, setError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!groupId) return;
@@ -55,6 +68,38 @@ export function SongList() {
     }
     setConfirmDeleteId(null);
     setIsDeleting(false);
+  };
+
+  const handleOpenEdit = (song: Song) => {
+    setEditingSong(song);
+    setEditTitle(song.title ?? '');
+    setEditArtist(song.artist ?? '');
+    setEditUrl(song.url ?? '');
+    setEditContent(song.content ?? '');
+  };
+
+  const handleSaveSong = async () => {
+    if (!editingSong || !editTitle.trim()) return;
+    setIsSaving(true);
+    const { error } = await supabase
+      .from('songs')
+      .update({
+        title: editTitle.trim(),
+        artist: editArtist.trim() || null,
+        url: editUrl.trim(),
+        content: editContent.trim() || null,
+      })
+      .eq('id', editingSong.id);
+    setIsSaving(false);
+    if (error) return;
+    setSongs((prev) =>
+      prev.map((s) =>
+        s.id === editingSong.id
+          ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || undefined, url: editUrl.trim(), content: editContent.trim() || undefined }
+          : s
+      )
+    );
+    setEditingSong(null);
   };
 
   return (
@@ -132,13 +177,22 @@ export function SongList() {
                         </a>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setConfirmDeleteId(song.id)}
-                    >
-                      Slett
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenEdit(song)}
+                      >
+                        Rediger
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmDeleteId(song.id)}
+                      >
+                        Slett
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -146,6 +200,75 @@ export function SongList() {
           </div>
         )}
       </div>
+
+      <Sheet open={!!editingSong} onOpenChange={(open) => { if (!open) setEditingSong(null); }}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[85vh] data-[state=open]:flex data-[state=open]:flex-col"
+        >
+          <SheetHeader className="flex-shrink-0">
+            <SheetTitle>Rediger sang</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-4 mt-4 overflow-y-auto">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Tittel</label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Sangnavn"
+                onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                Artist <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              <Input
+                value={editArtist}
+                onChange={(e) => setEditArtist(e.target.value)}
+                placeholder="Artistnavn"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                URL <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              <Input
+                value={editUrl}
+                onChange={(e) => setEditUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                Sangtekst <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              <textarea
+                className="w-full min-w-0 rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-base transition-colors outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-0 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                rows={8}
+                placeholder="Lim inn sangteksten her..."
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditingSong(null)}
+                disabled={isSaving}
+              >
+                Avbryt
+              </Button>
+              <Button
+                onClick={handleSaveSong}
+                disabled={isSaving || !editTitle.trim()}
+              >
+                {isSaving ? 'Lagrer…' : 'Lagre'}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
