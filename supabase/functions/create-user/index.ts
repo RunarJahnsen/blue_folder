@@ -1,3 +1,4 @@
+// Edge Function: create-user — oppretter auth-bruker og group_members-rad
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
