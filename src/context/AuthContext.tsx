@@ -20,10 +20,9 @@ async function fetchMemberships(userId: string): Promise<GroupMember[]> {
   try {
     console.log('[AuthContext] starting group_members query...');
     console.log('[AuthContext] supabase url:', (supabase as unknown as { supabaseUrl?: string }).supabaseUrl ?? 'missing');
-    const { data, error } = await supabase
-      .from('group_members')
-      .select('*')
-      .eq('user_id', userId);
+    const testResult = supabase.from('group_members').select('*').eq('user_id', userId);
+    console.log('[AuthContext] query object:', typeof testResult, Object.keys(testResult));
+    const { data, error } = await testResult;
     console.log('[AuthContext] group_members query done — data:', data, 'error:', error);
 
     if (error) {
