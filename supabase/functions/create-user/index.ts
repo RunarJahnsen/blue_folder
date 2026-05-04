@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
 
     // Create the auth user
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-      email: `${username}@intern`,
+      email: `${username}@intern.local`,
       password,
       email_confirm: true,
     });

@@ -33,7 +33,7 @@ export function Login() {
     setIsSubmitting(true);
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: `${username.trim()}@intern`,
+      email: `${username.trim()}@intern.local`,
       password,
     });
 
