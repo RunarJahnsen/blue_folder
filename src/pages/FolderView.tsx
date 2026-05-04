@@ -526,58 +526,61 @@ export function FolderView() {
             )}
           </div>
           {showHostControls && (
-            <div className="flex flex-wrap justify-end gap-3">
-              <select
-                className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                value={folder.status}
-                onChange={(e) => handleSetStatus(e.target.value as Folder['status'])}
-              >
-                <option value="planned">Planlagt</option>
-                <option value="active">Aktiv</option>
-                <option value="completed">Fullført</option>
-              </select>
-              <select
-                className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                value={folder.mode}
-                onChange={(e) => handleSetMode(e.target.value as Folder['mode'])}
-              >
-                <option value="host_only">Kun vert</option>
-                <option value="suggest">Forslag</option>
-                <option value="open">Åpen</option>
-              </select>
-              <Button size="sm" variant="outline" onClick={handleOpenEdit}>
-                Rediger
-              </Button>
-              {isConfirmingDelete ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">Er du sikker?</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsConfirmingDelete(false)}
-                    disabled={isDeleting}
-                  >
-                    Avbryt
-                  </Button>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
+                <select
+                  className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  value={folder.status}
+                  onChange={(e) => handleSetStatus(e.target.value as Folder['status'])}
+                >
+                  <option value="planned">Planlagt</option>
+                  <option value="active">Aktiv</option>
+                  <option value="completed">Fullført</option>
+                </select>
+                <select
+                  className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  value={folder.mode}
+                  onChange={(e) => handleSetMode(e.target.value as Folder['mode'])}
+                >
+                  <option value="host_only">Kun vert</option>
+                  <option value="suggest">Forslag</option>
+                  <option value="open">Åpen</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={handleOpenEdit}>
+                  Rediger
+                </Button>
+                {isConfirmingDelete ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">Er du sikker?</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsConfirmingDelete(false)}
+                      disabled={isDeleting}
+                    >
+                      Avbryt
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                      onClick={handleDeleteFolder}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? 'Sletter…' : 'Ja, slett'}
+                    </Button>
+                  </div>
+                ) : (
                   <Button
                     size="sm"
                     className="bg-red-600 hover:bg-red-700 text-white"
-                    onClick={handleDeleteFolder}
-                    disabled={isDeleting}
+                    onClick={() => setIsConfirmingDelete(true)}
                   >
-                    {isDeleting ? 'Sletter…' : 'Ja, slett'}
+                    Slett
                   </Button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-600 hover:text-red-700"
-                  onClick={() => setIsConfirmingDelete(true)}
-                >
-                  Slett
-                </Button>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -802,7 +805,7 @@ export function FolderView() {
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 placeholder="Permens tittel"
-                onFocus={(e) => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
               />
             </div>
             <div className="flex flex-col gap-1.5">
