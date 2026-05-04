@@ -25,7 +25,7 @@ interface AddSongModalProps {
 
 type Step = 'input' | 'url-match' | 'title-match';
 type InputMode = 'url' | 'lyrics';
-type FavoriteWithSong = Favorite & { songs: Song };
+type FavoriteWithSong = Favorite & { songs: SongWithTags };
 
 export function AddSongModal({
   isOpen,
@@ -40,6 +40,7 @@ export function AddSongModal({
   const [groupFavorites, setGroupFavorites] = useState<FavoriteWithSong[]>([]);
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
   const [favoritesSearch, setFavoritesSearch] = useState('');
+  const [activeFavFilterTags, setActiveFavFilterTags] = useState<string[]>([]);
 
   const [allSongs, setAllSongs] = useState<SongWithTags[]>([]);
   const [isFetchingAllSongs, setIsFetchingAllSongs] = useState(false);
@@ -67,7 +68,7 @@ export function AddSongModal({
     (async () => {
       const { data } = await supabase
         .from('favorites')
-        .select('id, song_id, group_id, created_at, songs(id, title, artist, url, content)')
+        .select('id, song_id, group_id, created_at, songs(id, title, artist, url, content, song_tags(id, tag_id, tags(id, name)))')
         .eq('group_id', groupId);
       if (data) setGroupFavorites(data as unknown as FavoriteWithSong[]);
       setIsFetchingFavorites(false);
@@ -283,6 +284,7 @@ export function AddSongModal({
     setActiveTab('url');
     setGroupFavorites([]);
     setFavoritesSearch('');
+    setActiveFavFilterTags([]);
     setAllSongs([]);
     setAllSongsSearch('');
     setIsFetchingAllSongs(false);
@@ -320,15 +322,35 @@ export function AddSongModal({
     return result;
   })();
 
+  const favTags = (() => {
+    const tagMap = new Map<string, { id: string; name: string }>();
+    groupFavorites.forEach(fav => {
+      fav.songs?.song_tags?.forEach(st => {
+        if (st.tags) tagMap.set(st.tags.id, st.tags);
+      });
+    });
+    return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
   const filteredFavorites = (() => {
     const q = favoritesSearch.trim().toLowerCase();
-    if (!q) return groupFavorites;
-    return groupFavorites.filter((fav) => {
-      const t = fav.songs?.title?.toLowerCase() ?? '';
-      const a = fav.songs?.artist?.toLowerCase() ?? '';
-      const c = fav.songs?.content?.toLowerCase() ?? '';
-      return t.includes(q) || a.includes(q) || c.includes(q);
-    });
+    let result = groupFavorites;
+    if (q) {
+      result = result.filter((fav) => {
+        const t = fav.songs?.title?.toLowerCase() ?? '';
+        const a = fav.songs?.artist?.toLowerCase() ?? '';
+        const c = fav.songs?.content?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q);
+      });
+    }
+    if (activeFavFilterTags.length > 0) {
+      result = result.filter(fav =>
+        activeFavFilterTags.some(tagId =>
+          fav.songs?.song_tags?.some(st => st.tag_id === tagId)
+        )
+      );
+    }
+    return result;
   })();
 
   const handleOpenChange = (open: boolean) => {
@@ -535,12 +557,36 @@ export function AddSongModal({
               onChange={(e) => setFavoritesSearch(e.target.value)}
               disabled={isFetchingFavorites}
             />
+            {favTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {favTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() =>
+                      setActiveFavFilterTags(prev =>
+                        prev.includes(tag.id)
+                          ? prev.filter(id => id !== tag.id)
+                          : [...prev, tag.id]
+                      )
+                    }
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                      activeFavFilterTags.includes(tag.id)
+                        ? 'bg-sky-500 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
+            )}
             {isFetchingFavorites ? (
               <p className="text-sm text-slate-500">Henter favoritter…</p>
             ) : groupFavorites.length === 0 ? (
               <p className="text-sm text-slate-500">Ingen favoritter ennå.</p>
             ) : filteredFavorites.length === 0 ? (
-              <p className="text-sm text-slate-500">Ingen treff for «{favoritesSearch}».</p>
+              <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {filteredFavorites.map((fav) => (

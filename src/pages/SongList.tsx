@@ -132,15 +132,12 @@ export function SongList() {
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    console.log('tagInput value:', tagInput);
     if (e.key === 'Enter') {
       e.preventDefault();
       const q = tagInput.trim().toLowerCase();
       if (!q) return;
       const exactMatch = tagSuggestions.find(t => t.name === q);
-      const tagToAdd = exactMatch ? exactMatch.name : q;
-      console.log('setSelectedTags called with:', tagToAdd);
-      handleAddTagToEdit(tagToAdd);
+      handleAddTagToEdit(exactMatch ? exactMatch.name : q);
     }
   };
 
@@ -174,26 +171,22 @@ export function SongList() {
     if (error) { setIsSaving(false); return; }
 
     let savedTags: Tag[] = [];
-    console.log('Saving tags:', editTagNames, 'for song:', editingSong.id);
     if (editTagNames.length > 0) {
-      const { data: upsertedTags, error: tagsError } = await supabase
+      const { data: upsertedTags } = await supabase
         .from('tags')
         .upsert(
           editTagNames.map(name => ({ group_id: groupId, name })),
           { onConflict: 'group_id,name' }
         )
         .select();
-      console.log('Tags upsert result:', tagsError);
       if (upsertedTags) savedTags = upsertedTags as Tag[];
     }
 
-    const { error: deleteError } = await supabase.from('song_tags').delete().eq('song_id', editingSong.id);
-    console.log('song_tags delete result:', deleteError);
+    await supabase.from('song_tags').delete().eq('song_id', editingSong.id);
     if (savedTags.length > 0) {
-      const { error: insertError } = await supabase.from('song_tags').insert(
+      await supabase.from('song_tags').insert(
         savedTags.map(tag => ({ song_id: editingSong.id, tag_id: tag.id, group_id: groupId }))
       );
-      console.log('song_tags insert result:', insertError);
     }
 
     const newSongTags: SongTagEntry[] = savedTags.map(tag => ({
