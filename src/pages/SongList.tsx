@@ -132,12 +132,15 @@ export function SongList() {
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    console.log('tagInput value:', tagInput);
     if (e.key === 'Enter') {
       e.preventDefault();
       const q = tagInput.trim().toLowerCase();
       if (!q) return;
       const exactMatch = tagSuggestions.find(t => t.name === q);
-      handleAddTagToEdit(exactMatch ? exactMatch.name : q);
+      const tagToAdd = exactMatch ? exactMatch.name : q;
+      console.log('setSelectedTags called with:', tagToAdd);
+      handleAddTagToEdit(tagToAdd);
     }
   };
 
