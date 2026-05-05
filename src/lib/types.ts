@@ -15,6 +15,7 @@ export interface Folder {
   current_queue_item_id?: string;
   owner_user_id?: string;
   join_code?: string;
+  guest_code?: string;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,8 @@ export interface Song {
   url: string;
   content?: string;
   source_label?: string;
+  added_by?: string;
+  updated_by?: string;
   created_at: string;
   updated_at: string;
 }

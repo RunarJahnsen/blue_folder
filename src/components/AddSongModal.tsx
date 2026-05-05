@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { useGuestSession } from '@/hooks/useGuestSession';
 import type { Favorite, Song, SongWithTags, Tag } from '@/lib/types';
 import {
   Sheet,
@@ -46,6 +48,9 @@ export function AddSongModal({
   maxPosition,
   onSongAdded,
 }: AddSongModalProps) {
+  const { memberships } = useAuth();
+  const { guestCode } = useGuestSession();
+  const addedBy = memberships.find(m => m.group_id === groupId)?.username ?? guestCode ?? null;
   const [activeTab, setActiveTab] = useState<'url' | 'favorites' | 'all'>('url');
   const [groupFavorites, setGroupFavorites] = useState<FavoriteWithSong[]>([]);
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
@@ -181,6 +186,7 @@ export function AddSongModal({
           url: '',
           content: lyrics,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
+          ...(addedBy ? { added_by: addedBy } : {}),
         }),
       });
       if (!res.ok) { setError('Kunne ikke opprett sang.'); return; }
@@ -206,6 +212,7 @@ export function AddSongModal({
           title,
           url,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
+          ...(addedBy ? { added_by: addedBy } : {}),
         }),
       });
       if (!songRes.ok) { setError('Kunne ikke opprett sang.'); return; }

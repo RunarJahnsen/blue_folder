@@ -248,11 +248,40 @@ Ved sangtekst-valg:
 Ny fane i AddSongModal ("Alle sanger") ved siden av "Favoritter". Viser alle sanger i gruppa med søk på artist, tittel og innhold (`songs.content`). Klikk legger sangen til i permen — samme logikk som favoritter-fanen.
 
 ### Tasks
-- [ ] Legg til inputmåte-toggle i URL-fanen ("URL" / "Sangtekst")
-- [ ] Bygg sangtekst-flyt: tittel + artist + textarea, opprett Song med content satt
-- [ ] Legg til "Alle sanger"-fane i AddSongModal
-- [ ] Hent alle sanger for gruppa med søk på artist, tittel og content
-- [ ] Klikk på sang i biblioteket legger til i permen
+- [x] Legg til inputmåte-toggle i URL-fanen ("URL" / "Sangtekst")
+- [x] Bygg sangtekst-flyt: tittel + artist + textarea, opprett Song med content satt
+- [x] Legg til "Alle sanger"-fane i AddSongModal
+- [x] Hent alle sanger for gruppa med søk på artist, tittel og content
+- [x] Klikk på sang i biblioteket legger til i permen
+- [x] Søk i favoritter-fanen (artist, tittel, tekst)
+
+---
+
+### Slice 8b — Redigering og sletting ✅
+
+Mål: Brukeren kan redigere og slette permer og sanger, samt fjerne sanger fra køen.
+
+#### Tasks
+- [x] **Rediger perm**: vert og admin kan endre tittel og dato på en eksisterende perm
+- [x] **Slett perm**: vert og admin kan slette en perm permanent. Sletter også alle tilhørende FolderSongEntries.
+- [x] **Fjern sang fra kø**: vert (og alle i open-mode) kan fjerne en sang fra køen — setter state til `removed`
+- [x] **Rediger sang**: fra sangoversikten kan man endre tittel, artist, URL og sangtekst
+
+---
+
+### Slice 8c — Tagging av sanger ✅
+
+Mål: Brukeren kan tagge sanger med egendefinerte tagger for organisering og søk.
+
+#### Tasks
+- [x] Datamodell for tagger (tags + song_tags tabeller)
+- [x] Legg til/fjern tagger på sang i sangoversikten
+- [x] "+" knapp for å legge til tag uten Enter
+- [x] Autocomplete på eksisterende tagger i gruppa
+- [x] Vis tagger som badges i sangoversikten
+- [x] Filtrer på tagger i sangoversikten
+- [x] Filtrer på tagger i "Alle sanger"-fanen i AddSongModal
+- [x] Filtrer på tagger i "Favoritter"-fanen i AddSongModal
 
 ---
 
@@ -286,38 +315,43 @@ group_members
 
 ---
 
-### Slice 9a — Supabase Auth og brukerregistrering
+### Slice 9a — Supabase Auth og brukerregistrering ✅
 
 Mål: Brukere kan registrere seg og logge inn. Admin kan opprette nye brukere i gruppa.
 
 #### Tasks
-- [ ] Aktiver Supabase Auth i prosjektet
-- [ ] Opprett `group_members`-tabellen med `user_id`, `group_id`, `role`
-- [ ] Bygg login-side (`/login`): brukernavn + passord, logger inn med Supabase Auth
-- [ ] Bygg registreringsflyt for admin: opprett ny bruker med brukernavn + passord + rolle, knytt til gruppe
-- [ ] Lagre bruker-session via Supabase Auth (ikke localStorage)
-- [ ] Redirect til gruppevalg etter login hvis brukeren tilhører flere grupper
-- [ ] Redirect til gruppens perm-oversikt etter login hvis brukeren kun tilhører én gruppe
-- [ ] Logg ut-funksjon
-- [ ] Fjern `access_code`-feltet og GroupAccess-siden
+- [x] Aktiver Supabase Auth i prosjektet
+- [x] Opprett `group_members`-tabellen med `user_id`, `group_id`, `role`
+- [x] Bygg login-side (`/login`): brukernavn + passord, logger inn med Supabase Auth
+- [x] Bygg registreringsflyt for admin: opprett ny bruker med brukernavn + passord + rolle, knytt til gruppe
+- [x] Lagre bruker-session via Supabase Auth (ikke localStorage)
+- [x] Redirect til gruppevalg etter login hvis brukeren tilhører flere grupper
+- [x] Redirect til gruppens perm-oversikt etter login hvis brukeren kun tilhører én gruppe
+- [x] Logg ut-funksjon
+- [x] Slett GroupAccess-siden (`access_code`-feltet beholdes til 9b)
 
 #### Teknisk detalj
-Supabase Auth bruker e-post som primær identifikator. Vi bruker `brukernavn@[groupId].intern` internt, men viser kun brukernavn i UI. Passordet håndteres av Supabase (bcrypt, salting — ingen manuell håndtering).
+Supabase Auth bruker e-post som primær identifikator. Vi bruker `brukernavn@intern` internt — brukernavn er unikt globalt i hele appen. Passordet håndteres av Supabase (bcrypt, salting — ingen manuell håndtering). Brukeroppretting skjer via Edge Function `create-user` med service role key.
+
+#### Bugfikser etter implementering
+- Supabase query-builder blokkerte alle REST-kall etter auth-initialisering → erstattet med rå `fetch()` i FolderView, FolderNew og AuthContext
+- `isLoading` ble aldri satt til `false` ved page refresh → fikset i `onAuthStateChange` (alle paths kaller nå `setIsLoading(false)`)
+- Deadlock i `fetchMemberships`: intern `getSession()`-kall inne i auth-callback → token sendes nå inn som parameter
 
 ---
 
-### Slice 9b — Tilgangsstyring per perm basert på brukerrolle
+### Slice 9b — Tilgangsstyring per perm basert på brukerrolle ✅
 
 Mål: Tilgang til permer og handlinger styres av brukerrolle, ikke session_id.
 
 #### Tasks
-- [ ] Legg til `owner_user_id` (FK → auth.users) på `folders`-tabellen — settes ved opprettelse
-- [ ] Fjern `host_session_id` fra `folders`
-- [ ] Oppdater `isHost`-logikk: bruker er vert hvis `folder.owner_user_id === currentUser.id` ELLER bruker har admin-rolle i gruppa
-- [ ] Admin-brukere har alltid vert-tilgang i alle permer i gruppa
-- [ ] Member-brukere har vert-tilgang kun i sine egne permer
-- [ ] Oppdater `showHostControls` tilsvarende
-- [ ] Legg til Row Level Security (RLS) i Supabase for å håndheve tilgang på database-nivå
+- [x] Legg til `owner_user_id` (FK → auth.users) på `folders`-tabellen — settes ved opprettelse
+- [x] Fjern `host_session_id` fra `folders`
+- [x] Oppdater `isHost`-logikk: bruker er vert hvis `folder.owner_user_id === currentUser.id` ELLER bruker har admin-rolle i gruppa
+- [x] Admin-brukere har alltid vert-tilgang i alle permer i gruppa
+- [x] Member-brukere har vert-tilgang kun i sine egne permer
+- [x] Oppdater `showHostControls` tilsvarende
+- [x] Legg til Row Level Security (RLS) i Supabase for å håndheve tilgang på database-nivå
 
 ---
 
@@ -336,20 +370,64 @@ Mål: Admin og permens eier kan invitere gjester til én spesifikk perm via lenk
 
 ---
 
-## Senere forbedringer (ikke i MVP)
+## Slice 10 — Polering og stabilitet
 
-- Genius-støtte for sangvisning — krever headless browser (f.eks. Puppeteer på Railway/Fly.io) eller Genius API med nøkkel. Genius blokkerer scraping fra Edge Functions med 403.
-- Ultimate Guitar-støtte — blokkerer med 403 fra Edge Function (bot-beskyttelse). Samme løsning som Genius — krever headless browser.
-- Sangstatistikk (antall ganger spilt, sist spilt, mest populære) — vises i sangoversikten
-- Nylig brukte sanger i "Legg til sang"-modal
-- Auto-utfyll av tittel/artist fra URL (Open Graph / metatags)
-- Drag-and-drop for å sortere køen
-- Bedre mobiloptimalisering og PWA-støtte
-- E-post-basert brukerregistrering ved produktisering
+Mål: Appen er stabil, ryddig og fungerer godt på mobil. Køen kan sorteres med drag-and-drop, og sanger kan legges til i bulk.
 
-## Fremtidig produktisering (ikke nå)
+### Tasks
+- [ ] Slettetilgang for sanger — kun oppretteren (matched på added_by) og admin kan slette sanger fra sangoversikten
+- [ ] Rydd opp position-verdier — renumerer alle entries fra 1 etter "Spill som neste"-operasjoner for å unngå svært negative tall (se NOTATER.md)
+- [ ] Drag-and-drop for å sortere køen — erstatter/supplerer "Spill som neste" og "Flytt nederst". Krever renumerering av position-verdier etter drop.
+- [ ] Flervalgsmodus i AddSongModal — i "Favoritter"- og "Alle sanger"-fanene kan man velge flere sanger samtidig og legge dem alle til i køen i én operasjon
+- [ ] Vis innlogget bruker i header — f.eks. "Hei Jon!" eller brukernavn synlig på perm-oversikten
+- [ ] Vis eier-indikasjon på perm-kort i oversikten — tydelig markering av hvilke permer brukeren selv eier
+- [ ] AddSongModal åpner Favoritter-fanen som default, ikke URL-input
+- [ ] TypeScript-opprydding — fjern gjenværende `any`-caster og løse typer
+- [ ] Gjennomgang av mobiloptimalisering — test alle flater på 375px, juster spacing og trykkflater der nødvendig
 
-- Personlige favoritter
+---
+
+## Slice 11 — Sangstatistikk
+
+Mål: Gruppa kan se statistikk på sangene sine — hvilke sanger som er mest populære, sist spilt og totalt antall ganger spilt.
+
+### Tasks
+- [ ] Beregn antall ganger spilt per sang (tell `FolderSongEntry` med `state = 'played'` per `song_id`)
+- [ ] Vis sist spilt-dato per sang
+- [ ] Vis statistikk i sangoversikten (`/:groupId/songs`) — sortérbar på antall ganger spilt
+- [ ] Vis "mest spilte sanger"-seksjon på perm-oversikten (topp 5)
+
+---
+
+## Slice 12 — Utvidet sanginnhenting
+
+Mål: Sangtekst og besifring kan hentes automatisk fra flere kilder.
+
+### Tasks
+- [ ] Sett opp ekstern Node.js-tjeneste (f.eks. Railway eller Fly.io) med Puppeteer for headless browser-scraping
+- [ ] Legg til Genius-støtte via headless browser eller offisiell Genius API
+- [ ] Legg til Ultimate Guitar-støtte via headless browser
+- [ ] Auto-utfyll av tittel og artist fra URL via Open Graph / metatags når sang legges til
+
+---
+
+## Slice 13 — Personlige favoritter
+
+Mål: Brukere kan lagre egne favoritter, atskilt fra gruppas felles favoritter.
+
+Forutsetter Slice 9 (brukerlogin).
+
+### Tasks
+- [ ] Legg til `user_id` på `favorites`-tabellen (eller ny tabell `user_favorites`)
+- [ ] Skille mellom gruppefavoritter og personlige favoritter i UI
+- [ ] Bruker kan lagre/fjerne egne favoritter
+- [ ] Personlige favoritter vises i AddSongModal
+
+---
+
+## Fremtidig produktisering (ikke prioritert)
+
+- E-post-basert brukerregistrering
+- Integrasjoner (Spotify, YouTube)
 - Flere grupper med full isolasjon per bruker
 - Bedre sangbibliotek med flere versjoner per sang
-- Integrasjoner (Spotify, YouTube, Genius)

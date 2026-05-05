@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Favorite, SongWithTags, Tag, SongTagEntry } from '@/lib/types';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function SongList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const { memberships } = useAuth();
   const [songs, setSongs] = useState<SongWithTags[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
@@ -177,6 +179,7 @@ export function SongList() {
     setIsSaving(true);
     const headers = await pgHeaders();
     const base = BASE();
+    const updatedBy = memberships.find(m => m.group_id === groupId)?.username ?? null;
 
     const updateRes = await fetch(`${base}/rest/v1/songs?id=eq.${editingSong.id}`, {
       method: 'PATCH',
@@ -186,6 +189,7 @@ export function SongList() {
         artist: editArtist.trim() || null,
         url: editUrl.trim(),
         content: editContent.trim() || null,
+        ...(updatedBy ? { updated_by: updatedBy } : {}),
       }),
     });
     if (!updateRes.ok) { setIsSaving(false); return; }

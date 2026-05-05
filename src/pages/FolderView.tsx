@@ -18,6 +18,7 @@ import {
 import { AddSongModal } from '@/components/AddSongModal';
 import { SongContentSheet } from '@/components/SongContentSheet';
 import { useAuth } from '@/hooks/useAuth';
+import { useGuestSession } from '@/hooks/useGuestSession';
 
 interface SongWithEntry extends FolderSongEntry {
   songs?: Song;
@@ -52,6 +53,7 @@ export function FolderView() {
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingGuestCode, setIsSavingGuestCode] = useState(false);
 
   useEffect(() => {
     if (!groupId || !folderId) {
@@ -211,8 +213,10 @@ export function FolderView() {
     [favorites]
   );
 
+  const { isGuest, guestFolderId } = useGuestSession();
+  const isCurrentGuest = isGuest && guestFolderId === folderId;
   const isHost = folder?.owner_user_id === user?.id || isAdmin(groupId!);
-  const showHostControls = folder?.mode === 'open' || isHost;
+  const showHostControls = !isCurrentGuest && (folder?.mode === 'open' || isHost);
 
   const handleToggleFavorite = async (songId: string) => {
     if (!groupId) return;
@@ -455,6 +459,33 @@ export function FolderView() {
     navigate(`/${groupId}`);
   };
 
+  const handleGenerateGuestCode = async () => {
+    if (!folderId) return;
+    setIsSavingGuestCode(true);
+    const guestCode = crypto.randomUUID();
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ guest_code: guestCode }),
+    });
+    if (res.ok) setFolder((prev) => (prev ? { ...prev, guest_code: guestCode } : prev));
+    setIsSavingGuestCode(false);
+  };
+
+  const handleDeactivateGuestCode = async () => {
+    if (!folderId) return;
+    setIsSavingGuestCode(true);
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/folders?id=eq.${folderId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ guest_code: null }),
+    });
+    if (res.ok) setFolder((prev) => (prev ? { ...prev, guest_code: undefined } : prev));
+    setIsSavingGuestCode(false);
+  };
+
   const handleSongAdded = () => {
     if (!groupId || !folderId) return;
     (async () => {
@@ -632,6 +663,38 @@ export function FolderView() {
                   </Button>
                 )}
               </div>
+              {isHost && (
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gjesteinvitasjon</p>
+                  {folder.guest_code ? (
+                    <>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/join/${folder.guest_code}`}
+                          className="flex-1 rounded-xl bg-slate-50 border-0 px-3 py-2 text-xs text-slate-600 shadow-sm"
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join/${folder.guest_code!}`)}
+                        >
+                          Kopier
+                        </Button>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={handleDeactivateGuestCode} disabled={isSavingGuestCode}>
+                        {isSavingGuestCode ? 'Deaktiverer…' : 'Deaktiver gjestekode'}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" onClick={handleGenerateGuestCode} disabled={isSavingGuestCode}>
+                      {isSavingGuestCode ? 'Genererer…' : 'Generer gjestekode'}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
