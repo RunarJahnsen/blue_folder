@@ -52,7 +52,6 @@ export function AddSongModal({
   const { guestCode } = useGuestSession();
   const addedBy = memberships.find(m => m.group_id === groupId)?.username ?? guestCode ?? null;
   const [activeTab, setActiveTab] = useState<'mine' | 'url' | 'favorites' | 'all'>(user ? 'mine' : 'favorites');
-  const [userFavorites, setUserFavorites] = useState<UserFavorite[]>([]);
   const [isFetchingUserFavs, setIsFetchingUserFavs] = useState(false);
   const [userFavsSearch, setUserFavsSearch] = useState('');
   const [mineSongs, setMineSongs] = useState<SongWithTags[]>([]);
@@ -102,7 +101,6 @@ export function AddSongModal({
       );
       const data = await res.json();
       if (Array.isArray(data)) {
-        setUserFavorites(data as unknown as UserFavorite[]);
         setMineSongs(
           (data as unknown as Array<UserFavorite & { songs: SongWithTags }>)
             .map((r) => r.songs)
@@ -371,7 +369,6 @@ export function AddSongModal({
     setIsSavingManual(false);
     setSelectedSongIds(new Set());
     setActiveTab(user ? 'mine' : 'favorites');
-    setUserFavorites([]);
     setMineSongs([]);
     setUserFavsSearch('');
     setIsFetchingUserFavs(false);
