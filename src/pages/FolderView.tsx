@@ -395,6 +395,8 @@ export function FolderView() {
     setFolder((prev) =>
       prev ? { ...prev, current_queue_item_id: nextQueued?.id ?? undefined } : prev
     );
+    const remainingAfterNext = queuedEntries.slice(1);
+    await normalizePositions(remainingAfterNext.map((e) => e.id));
   };
 
   const handleApproveSuggestion = async (entry: SongWithEntry) => {
@@ -475,9 +477,12 @@ export function FolderView() {
       })
     );
     setFolder((prev) => (prev ? { ...prev, current_queue_item_id: entry.id } : prev));
+    const remainingAfterNow = queuedEntries.filter((e) => e.id !== entry.id);
+    await normalizePositions(remainingAfterNow.map((e) => e.id));
   };
 
   const normalizePositions = async (orderedIds: string[]) => {
+    if (orderedIds.length === 0) return;
     const headers = await pgHeaders();
     await fetch(`${BASE()}/rest/v1/folder_song_entries?on_conflict=id`, {
       method: 'POST',
@@ -487,44 +492,50 @@ export function FolderView() {
   };
 
   const handleMoveToBottom = async (entry: SongWithEntry) => {
-    const headers = await pgHeaders();
-    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ state: 'queued' }),
-    });
-    if (!res.ok) return;
     const reordered = [
       ...queuedEntries.filter((e) => e.id !== entry.id),
       { ...entry, state: 'queued' as const },
     ];
+    // Optimistic update first — prevents Realtime event from overwriting
     setEntries((prev) =>
       prev.map((e) => {
         const idx = reordered.findIndex((r) => r.id === e.id);
         return idx !== -1 ? { ...e, state: 'queued' as const, position: idx + 1 } : e;
       })
     );
+    // Only PATCH if state needs to change (entry comes from played/suggested)
+    if (entry.state !== 'queued') {
+      const headers = await pgHeaders();
+      await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ state: 'queued', position: reordered.length }),
+      });
+    }
     await normalizePositions(reordered.map((e) => e.id));
   };
 
   const handlePlayAsNext = async (entry: SongWithEntry) => {
-    const headers = await pgHeaders();
-    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ state: 'queued' }),
-    });
-    if (!res.ok) return;
     const reordered = [
       { ...entry, state: 'queued' as const },
       ...queuedEntries.filter((e) => e.id !== entry.id),
     ];
+    // Optimistic update first — prevents Realtime event from overwriting
     setEntries((prev) =>
       prev.map((e) => {
         const idx = reordered.findIndex((r) => r.id === e.id);
         return idx !== -1 ? { ...e, state: 'queued' as const, position: idx + 1 } : e;
       })
     );
+    // Only PATCH if state needs to change (entry comes from played/suggested)
+    if (entry.state !== 'queued') {
+      const headers = await pgHeaders();
+      await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ state: 'queued', position: 1 }),
+      });
+    }
     await normalizePositions(reordered.map((e) => e.id));
   };
 
