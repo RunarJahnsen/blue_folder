@@ -29,8 +29,7 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function SongList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { memberships, isAdmin } = useAuth();
-  const currentUsername = groupId ? memberships.find(m => m.group_id === groupId)?.username : undefined;
+  const { isAdmin, username } = useAuth();
   const [songs, setSongs] = useState<SongWithTags[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
@@ -359,6 +358,9 @@ export function SongList() {
                             {song.url.length > 50 ? song.url.slice(0, 47) + '…' : song.url}
                           </a>
                         )}
+                        {song.added_by && (
+                          <span className="text-xs text-slate-400">Lagt til av {song.added_by}</span>
+                        )}
                         {song.song_tags && song.song_tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {song.song_tags.map(st => st.tags && (
@@ -381,7 +383,7 @@ export function SongList() {
                       >
                         Rediger
                       </Button>
-                      {(isAdmin(groupId!) || song.added_by === currentUsername) && (
+                      {(isAdmin(groupId!) || (username && song.added_by === username)) && (
                         <Button
                           size="sm"
                           variant="outline"

@@ -42,7 +42,7 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function FolderNew() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, username } = useAuth();
 
   const [copyMode, setCopyMode] = useState<'new' | 'copy'>('new');
   const [sourceFolders, setSourceFolders] = useState<SourceFolder[]>([]);
@@ -118,6 +118,7 @@ export function FolderNew() {
       status: 'planned',
       mode,
       ...(user?.id ? { owner_user_id: user.id } : {}),
+      ...(username ? { owner_username: username } : {}),
     };
 
     const folderRes = await fetch(`${base}/rest/v1/folders`, {

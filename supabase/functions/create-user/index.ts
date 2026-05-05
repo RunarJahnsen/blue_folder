@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
       email: `${username}@intern.local`,
       password,
       email_confirm: true,
+      user_metadata: { username },
     });
 
     if (createError || !newUser.user) {

@@ -6,6 +6,7 @@ import type { GroupMember } from '@/lib/types';
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
+  username: string | null;
   memberships: GroupMember[];
   isAdmin: (groupId: string) => boolean;
   isLoading: boolean;
@@ -131,9 +132,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const username = (session?.user?.user_metadata?.username as string | undefined)
+    ?? session?.user?.email?.split('@')[0]
+    ?? null;
+
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, memberships, isAdmin, isLoading, signOut }}
+      value={{ session, user: session?.user ?? null, username, memberships, isAdmin, isLoading, signOut }}
     >
       {children}
     </AuthContext.Provider>

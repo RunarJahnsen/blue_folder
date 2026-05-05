@@ -14,6 +14,7 @@ export interface Folder {
   mode: 'host_only' | 'suggest' | 'open';
   current_queue_item_id?: string;
   owner_user_id?: string;
+  owner_username?: string;
   join_code?: string;
   guest_code?: string;
   created_at: string;

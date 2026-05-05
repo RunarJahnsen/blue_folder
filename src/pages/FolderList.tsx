@@ -27,8 +27,7 @@ import {
 export function FolderList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { signOut, isAdmin, user, memberships } = useAuth();
-  const currentUsername = groupId ? memberships.find(m => m.group_id === groupId)?.username : undefined;
+  const { signOut, isAdmin, user, username } = useAuth();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,7 +46,7 @@ export function FolderList() {
       try {
         const headers = await pgHeaders();
         const res = await fetch(
-          `${BASE()}/rest/v1/folders?group_id=eq.${groupId}&select=id,title,date,status,mode,owner_user_id&order=date.asc`,
+          `${BASE()}/rest/v1/folders?group_id=eq.${groupId}&select=id,title,date,status,mode,owner_user_id,owner_username&order=date.asc`,
           { headers }
         );
         const data = await res.json();
@@ -100,6 +99,9 @@ export function FolderList() {
         </div>
         <CardDescription>
           {folder.date} · {folder.mode.replace('_', ' ')}
+          {folder.owner_username && (
+            <span className="block text-xs text-slate-400 mt-0.5">Eier: {folder.owner_username}</span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -117,7 +119,7 @@ export function FolderList() {
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
             <h1 className="text-2xl font-semibold text-slate-900">
-              {currentUsername ? `Hei, ${currentUsername}` : 'Permoversikt'}
+              {username ? `Hei, ${username}` : 'Permoversikt'}
             </h1>
             <p className="max-w-2xl text-sm text-slate-600">
               Se alle permer i gruppen og opprett en ny samling.

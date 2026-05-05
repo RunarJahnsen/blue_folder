@@ -480,11 +480,12 @@ export function AddSongModal({
                     <label className="block text-sm font-medium text-slate-700 mb-2">URL</label>
                     <Input
                       type="text"
-                      placeholder="https://genius.com/..."
+                      placeholder="https://www.nortabs.net/..."
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
                       disabled={isLoading}
                     />
+                    <p className="text-xs text-slate-400 mt-1">Sanger fra Nortabs hentes automatisk med tekst.</p>
                   </div>
                 )}
                 <div>
