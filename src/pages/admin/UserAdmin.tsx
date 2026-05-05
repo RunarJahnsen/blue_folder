@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import type { GroupMember } from '@/lib/types';
 
 export function UserAdmin() {
@@ -25,9 +20,9 @@ export function UserAdmin() {
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
 
-  // Edit dialog
+  // Edit modal
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   // Edit username section
   const [editUsername, setEditUsername] = useState('');
@@ -89,7 +84,7 @@ export function UserAdmin() {
     return { ok: false, error: json.error ?? 'Noe gikk galt.' };
   }
 
-  function openDialog(member: GroupMember) {
+  function openModal(member: GroupMember) {
     setSelectedMember(member);
     setEditUsername('');
     setUsernameError('');
@@ -100,7 +95,11 @@ export function UserAdmin() {
     setRoleError('');
     setConfirmRemove(false);
     setRemoveError('');
-    setDialogOpen(true);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
   }
 
   async function handleCreateUser(e: React.FormEvent) {
@@ -146,9 +145,7 @@ export function UserAdmin() {
     });
     if (result.ok) {
       const trimmed = editUsername.trim();
-      setMembers((prev) =>
-        prev.map((m) => m.id === selectedMember.id ? { ...m, username: trimmed } : m)
-      );
+      setMembers((prev) => prev.map((m) => m.id === selectedMember.id ? { ...m, username: trimmed } : m));
       setSelectedMember((prev) => prev ? { ...prev, username: trimmed } : prev);
       setUsernameSuccess('Visningsnavn oppdatert.');
       setEditUsername('');
@@ -170,9 +167,7 @@ export function UserAdmin() {
       newRole,
     });
     if (result.ok) {
-      setMembers((prev) =>
-        prev.map((m) => m.id === selectedMember.id ? { ...m, role: newRole } : m)
-      );
+      setMembers((prev) => prev.map((m) => m.id === selectedMember.id ? { ...m, role: newRole } : m));
       setSelectedMember((prev) => prev ? { ...prev, role: newRole } : prev);
     } else {
       setRoleError(result.error ?? 'Noe gikk galt.');
@@ -211,7 +206,7 @@ export function UserAdmin() {
     });
     if (result.ok) {
       setMembers((prev) => prev.filter((m) => m.id !== selectedMember.id));
-      setDialogOpen(false);
+      closeModal();
     } else {
       setRemoveError(result.error ?? 'Noe gikk galt.');
       setIsRemoving(false);
@@ -300,7 +295,7 @@ export function UserAdmin() {
                     </span>
                   </div>
                   <button
-                    onClick={() => openDialog(m)}
+                    onClick={() => openModal(m)}
                     className="flex-shrink-0 rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
                   >
                     Rediger
@@ -312,132 +307,145 @@ export function UserAdmin() {
         </div>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setDialogOpen(false); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {selectedMember?.username}
-              <span
-                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  selectedMember?.role === 'admin' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                {selectedMember?.role === 'admin' ? 'Admin' : 'Bruker'}
-              </span>
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-5 overflow-y-auto max-h-[65vh] pt-1 pr-1">
-            {/* Change username */}
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre visningsnavn</p>
-              <input
-                type="text"
-                value={editUsername}
-                onChange={(e) => setEditUsername(e.target.value)}
-                placeholder={selectedMember?.username ?? ''}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
-                autoCapitalize="none"
-                autoCorrect="off"
-              />
-              {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
-              {usernameSuccess && <p className="text-xs text-green-600">{usernameSuccess}</p>}
-              <div>
-                <button
-                  onClick={handleSaveUsername}
-                  disabled={isSavingUsername || !editUsername.trim()}
-                  className="rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+      {modalOpen && selectedMember && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex-shrink-0 flex items-center justify-between gap-2 px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-slate-900 truncate">{selectedMember.username}</span>
+                <span
+                  className={`inline-flex flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    selectedMember.role === 'admin' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
+                  }`}
                 >
-                  {isSavingUsername ? 'Lagrer…' : 'Lagre'}
-                </button>
-              </div>
-            </div>
-
-            {/* Change role */}
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre rolle</p>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-700">
-                  Nå: <strong>{selectedMember?.role === 'admin' ? 'Admin' : 'Bruker'}</strong>
+                  {selectedMember.role === 'admin' ? 'Admin' : 'Bruker'}
                 </span>
-                <button
-                  onClick={handleToggleRole}
-                  disabled={isChangingRole}
-                  className="rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 disabled:opacity-50 transition-colors"
-                >
-                  {isChangingRole
-                    ? 'Lagrer…'
-                    : selectedMember?.role === 'admin'
-                    ? 'Gjør til bruker'
-                    : 'Gjør til admin'}
-                </button>
               </div>
-              {roleError && <p className="text-xs text-red-600">{roleError}</p>}
+              <button
+                onClick={closeModal}
+                className="flex-shrink-0 rounded-full border-0 bg-transparent text-slate-400 hover:text-slate-600 transition-colors p-1"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            {/* Reset password */}
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tilbakestill passord</p>
-              <input
-                type="password"
-                value={editPassword}
-                onChange={(e) => setEditPassword(e.target.value)}
-                placeholder="Nytt passord"
-                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
-              />
-              {passwordError && <p className="text-xs text-red-600">{passwordError}</p>}
-              {passwordSuccess && <p className="text-xs text-green-600">{passwordSuccess}</p>}
-              <div>
-                <button
-                  onClick={handleSavePassword}
-                  disabled={isSavingPassword || !editPassword.trim()}
-                  className="rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
-                >
-                  {isSavingPassword ? 'Lagrer…' : 'Sett passord'}
-                </button>
-              </div>
-            </div>
-
-            {/* Remove */}
-            <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fjern fra gruppa</p>
-              {!confirmRemove ? (
+            {/* Scrollable content */}
+            <div className="overflow-y-auto flex-grow px-6 py-4 flex flex-col gap-5">
+              {/* Change username */}
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre visningsnavn</p>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  placeholder={selectedMember.username}
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                />
+                {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
+                {usernameSuccess && <p className="text-xs text-green-600">{usernameSuccess}</p>}
                 <div>
                   <button
-                    onClick={() => setConfirmRemove(true)}
-                    className="rounded-full border-0 bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 transition-colors"
+                    onClick={handleSaveUsername}
+                    disabled={isSavingUsername || !editUsername.trim()}
+                    className="rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
                   >
-                    Fjern bruker
+                    {isSavingUsername ? 'Lagrer…' : 'Lagre'}
                   </button>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm text-slate-700">
-                    Er du sikker på at du vil fjerne <strong>{selectedMember?.username}</strong>?
-                  </p>
-                  {removeError && <p className="text-xs text-red-600">{removeError}</p>}
-                  <div className="flex gap-2">
+              </div>
+
+              {/* Change role */}
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre rolle</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-700">
+                    Nå: <strong>{selectedMember.role === 'admin' ? 'Admin' : 'Bruker'}</strong>
+                  </span>
+                  <button
+                    onClick={handleToggleRole}
+                    disabled={isChangingRole}
+                    className="rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                  >
+                    {isChangingRole
+                      ? 'Lagrer…'
+                      : selectedMember.role === 'admin'
+                      ? 'Gjør til bruker'
+                      : 'Gjør til admin'}
+                  </button>
+                </div>
+                {roleError && <p className="text-xs text-red-600">{roleError}</p>}
+              </div>
+
+              {/* Reset password */}
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tilbakestill passord</p>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Nytt passord"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+                />
+                {passwordError && <p className="text-xs text-red-600">{passwordError}</p>}
+                {passwordSuccess && <p className="text-xs text-green-600">{passwordSuccess}</p>}
+                <div>
+                  <button
+                    onClick={handleSavePassword}
+                    disabled={isSavingPassword || !editPassword.trim()}
+                    className="rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+                  >
+                    {isSavingPassword ? 'Lagrer…' : 'Sett passord'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remove */}
+              <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fjern fra gruppa</p>
+                {!confirmRemove ? (
+                  <div>
                     <button
-                      onClick={handleRemove}
-                      disabled={isRemoving}
-                      className="rounded-full border-0 bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 disabled:opacity-50 transition-colors"
+                      onClick={() => setConfirmRemove(true)}
+                      className="rounded-full border-0 bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 transition-colors"
                     >
-                      {isRemoving ? 'Fjerner…' : 'Bekreft'}
-                    </button>
-                    <button
-                      onClick={() => { setConfirmRemove(false); setRemoveError(''); }}
-                      disabled={isRemoving}
-                      className="rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
-                    >
-                      Avbryt
+                      Fjern bruker
                     </button>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-slate-700">
+                      Er du sikker på at du vil fjerne <strong>{selectedMember.username}</strong>?
+                    </p>
+                    {removeError && <p className="text-xs text-red-600">{removeError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleRemove}
+                        disabled={isRemoving}
+                        className="rounded-full border-0 bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 disabled:opacity-50 transition-colors"
+                      >
+                        {isRemoving ? 'Fjerner…' : 'Bekreft'}
+                      </button>
+                      <button
+                        onClick={() => { setConfirmRemove(false); setRemoveError(''); }}
+                        disabled={isRemoving}
+                        className="rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 }
