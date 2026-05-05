@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import type { GroupMember } from '@/lib/types';
@@ -28,12 +27,18 @@ export function UserAdmin() {
 
   async function fetchMembers() {
     setIsLoading(true);
-    const { data } = await supabase
-      .from('group_members')
-      .select('*')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: true });
-    setMembers((data ?? []) as GroupMember[]);
+    const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/group_members?group_id=eq.${groupId}&select=*&order=created_at.asc`,
+      {
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    const data = await res.json();
+    setMembers(Array.isArray(data) ? (data as GroupMember[]) : []);
     setIsLoading(false);
   }
 
