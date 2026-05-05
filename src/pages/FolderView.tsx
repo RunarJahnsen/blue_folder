@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Plus } from 'lucide-react';
+import { ArrowLeft, GripVertical, Heart, Plus } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { supabase } from '@/lib/supabase';
 import type { Favorite, Folder, FolderSongEntry, Song } from '@/lib/types';
 import {
@@ -21,6 +36,105 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface SongWithEntry extends FolderSongEntry {
   songs?: Song;
+}
+
+interface SortableQueueItemProps {
+  entry: SongWithEntry;
+  showQueueControls: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: (songId: string) => void;
+  onSongClick: (song: Song) => void;
+  onMoveToBottom: (entry: SongWithEntry) => void;
+  onPlayAsNext: (entry: SongWithEntry) => void;
+  onPlayNow: (entry: SongWithEntry) => void;
+  onRemove: (entryId: string) => void;
+}
+
+function SortableQueueItem({
+  entry, showQueueControls, isFavorite,
+  onToggleFavorite, onSongClick,
+  onMoveToBottom, onPlayAsNext, onPlayNow, onRemove,
+}: SortableQueueItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+
+  const song = entry.songs as Song | undefined;
+  const songTitle = song?.title || 'Ukjent sang';
+
+  const titleEl = song?.content ? (
+    <button
+      type="button"
+      onClick={() => onSongClick(song)}
+      className="text-sky-600 hover:underline font-medium break-words text-left border-0 bg-transparent p-0"
+    >
+      {songTitle}
+    </button>
+  ) : song?.url ? (
+    <a href={song.url} target="_blank" rel="noopener noreferrer"
+      className="text-sky-600 hover:underline font-medium break-words">
+      {songTitle}
+    </a>
+  ) : (
+    <span className="font-medium text-slate-900">{songTitle}</span>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card>
+        <CardContent>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-start justify-between gap-4">
+              {showQueueControls && (
+                <button
+                  type="button"
+                  {...attributes}
+                  {...listeners}
+                  className="flex-shrink-0 mt-0.5 border-0 bg-transparent p-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 touch-none"
+                  aria-label="Dra for å sortere"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </button>
+              )}
+              <span className="flex-shrink-0 text-slate-400 font-semibold">
+                #{entry.position || '–'}
+              </span>
+              <div className="flex-1 min-w-0">
+                {titleEl}
+                {song?.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => song?.id && onToggleFavorite(song.id)}
+                className="flex-shrink-0 border-0 bg-transparent p-0 transition-colors"
+              >
+                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
+              </button>
+            </div>
+            {showQueueControls && (
+              <div className="flex gap-2 justify-end flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => onMoveToBottom(entry)}>
+                  Flytt nederst
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => onPlayAsNext(entry)}>
+                  Spill som neste
+                </Button>
+                <Button size="sm" onClick={() => onPlayNow(entry)}>
+                  Spill nå
+                </Button>
+                <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => onRemove(entry.id)}>
+                  Fjern
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 async function pgHeaders() {
@@ -363,35 +477,84 @@ export function FolderView() {
     setFolder((prev) => (prev ? { ...prev, current_queue_item_id: entry.id } : prev));
   };
 
+  const normalizePositions = async (orderedIds: string[]) => {
+    const headers = await pgHeaders();
+    await fetch(`${BASE()}/rest/v1/folder_song_entries?on_conflict=id`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify(orderedIds.map((id, i) => ({ id, position: i + 1 }))),
+    });
+  };
+
   const handleMoveToBottom = async (entry: SongWithEntry) => {
-    const newPosition = maxPosition + 1;
     const headers = await pgHeaders();
     const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify({ state: 'queued', position: newPosition }),
+      body: JSON.stringify({ state: 'queued' }),
     });
     if (!res.ok) return;
+    const reordered = [
+      ...queuedEntries.filter((e) => e.id !== entry.id),
+      { ...entry, state: 'queued' as const },
+    ];
     setEntries((prev) =>
-      prev.map((e) => (e.id === entry.id ? { ...e, state: 'queued' as const, position: newPosition } : e))
+      prev.map((e) => {
+        const idx = reordered.findIndex((r) => r.id === e.id);
+        return idx !== -1 ? { ...e, state: 'queued' as const, position: idx + 1 } : e;
+      })
     );
+    await normalizePositions(reordered.map((e) => e.id));
   };
 
   const handlePlayAsNext = async (entry: SongWithEntry) => {
-    const minPosition = queuedEntries.length > 0
-      ? Math.min(...queuedEntries.map((e) => e.position || 0))
-      : 0;
-    const newPosition = minPosition - 1;
     const headers = await pgHeaders();
     const res = await fetch(`${BASE()}/rest/v1/folder_song_entries?id=eq.${entry.id}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify({ state: 'queued', position: newPosition }),
+      body: JSON.stringify({ state: 'queued' }),
     });
     if (!res.ok) return;
+    const reordered = [
+      { ...entry, state: 'queued' as const },
+      ...queuedEntries.filter((e) => e.id !== entry.id),
+    ];
     setEntries((prev) =>
-      prev.map((e) => (e.id === entry.id ? { ...e, state: 'queued' as const, position: newPosition } : e))
+      prev.map((e) => {
+        const idx = reordered.findIndex((r) => r.id === e.id);
+        return idx !== -1 ? { ...e, state: 'queued' as const, position: idx + 1 } : e;
+      })
     );
+    await normalizePositions(reordered.map((e) => e.id));
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = queuedEntries.findIndex((e) => e.id === active.id);
+    const newIndex = queuedEntries.findIndex((e) => e.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = [...queuedEntries];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+
+    const snapshot = [...entries];
+    setEntries((prev) =>
+      prev.map((e) => {
+        const idx = reordered.findIndex((r) => r.id === e.id);
+        return idx !== -1 ? { ...e, position: idx + 1 } : e;
+      })
+    );
+
+    const ok = await normalizePositions(reordered.map((e) => e.id)).then(() => true).catch(() => false);
+    if (!ok) setEntries(snapshot);
   };
 
   const handleSetMode = async (mode: Folder['mode']) => {
@@ -740,51 +903,26 @@ export function FolderView() {
             <span className="text-sm text-slate-500">{queuedEntries.length} sanger</span>
           </div>
           {queuedEntries.length > 0 ? (
-            <div className="grid gap-3">
-              {queuedEntries.map((entry) => (
-                <Card key={entry.id}>
-                  <CardContent>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-start justify-between gap-4">
-                        <span className="flex-shrink-0 text-slate-400 font-semibold">
-                          #{entry.position || '–'}
-                        </span>
-                        <div className="flex-1 min-w-0">{renderSongLink(entry)}</div>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleFavorite((entry.songs as any)?.id)}
-                          className="flex-shrink-0 border-0 bg-transparent p-0 transition-colors"
-                        >
-                          <Heart
-                            className={`h-4 w-4 ${favoriteSongIds.has((entry.songs as any)?.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`}
-                          />
-                        </button>
-                      </div>
-                      {showQueueControls && (
-                        <div className="flex gap-2 justify-end flex-wrap">
-                          <Button size="sm" variant="outline" onClick={() => handleMoveToBottom(entry)}>
-                            Flytt nederst
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handlePlayAsNext(entry)}>
-                            Spill som neste
-                          </Button>
-                          <Button size="sm" onClick={() => handlePlayNow(entry)}>
-                            Spill nå
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                            onClick={() => handleRemoveFromQueue(entry.id)}
-                          >
-                            Fjern
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={queuedEntries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                <div className="grid gap-3">
+                  {queuedEntries.map((entry) => (
+                    <SortableQueueItem
+                      key={entry.id}
+                      entry={entry}
+                      showQueueControls={showQueueControls}
+                      isFavorite={favoriteSongIds.has((entry.songs as Song | undefined)?.id ?? '')}
+                      onToggleFavorite={handleToggleFavorite}
+                      onSongClick={setSelectedSong}
+                      onMoveToBottom={handleMoveToBottom}
+                      onPlayAsNext={handlePlayAsNext}
+                      onPlayNow={handlePlayNow}
+                      onRemove={handleRemoveFromQueue}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           ) : (
             <Card className="bg-slate-50 text-slate-600 text-sm">
               <CardContent>Ingen sanger i køen ennå.</CardContent>
