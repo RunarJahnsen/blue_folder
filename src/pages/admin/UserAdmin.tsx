@@ -327,7 +327,7 @@ export function UserAdmin() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-5 pt-1">
+          <div className="flex flex-col gap-5 overflow-y-auto max-h-[65vh] pt-1 pr-1">
             {/* Change username */}
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre visningsnavn</p>
