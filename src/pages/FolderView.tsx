@@ -80,7 +80,7 @@ export function FolderView() {
         setFolder(folderData);
 
         const entriesRes = await fetch(
-          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,url,content)&order=state.asc,position.asc`,
+          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content)&order=state.asc,position.asc`,
           { headers }
         );
         const entriesRaw = await entriesRes.json();
@@ -128,7 +128,7 @@ export function FolderView() {
           const newRow = payload.new as FolderSongEntry;
           const headers = await pgHeaders();
           const res = await fetch(
-            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,url,content)`,
+            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content)`,
             { headers }
           );
           const raw = await res.json();
@@ -489,7 +489,7 @@ export function FolderView() {
       try {
         const headers = await pgHeaders();
         const res = await fetch(
-          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,url,content)&order=state.asc,position.asc`,
+          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content)&order=state.asc,position.asc`,
           { headers }
         );
         const raw = await res.json();
@@ -502,34 +502,34 @@ export function FolderView() {
     })();
   };
 
-  const formatSongTitle = (song: Song) =>
-    song.artist ? `${song.artist} — ${song.title}` : (song.title || 'Ukjent sang');
-
   const renderSongLink = (entry: SongWithEntry) => {
     const song = entry.songs as Song | undefined;
     if (!song) return 'Ukjent sang';
 
-    if (song.content) {
-      return (
-        <button
-          type="button"
-          onClick={() => setSelectedSong(song)}
-          className="text-sky-600 hover:underline font-medium break-words text-left border-0 bg-transparent p-0"
-        >
-          {formatSongTitle(song)}
-        </button>
-      );
-    }
-
-    return (
+    const titleEl = song.content ? (
+      <button
+        type="button"
+        onClick={() => setSelectedSong(song)}
+        className="text-sky-600 hover:underline font-medium break-words text-left border-0 bg-transparent p-0"
+      >
+        {song.title || 'Ukjent sang'}
+      </button>
+    ) : (
       <a
         href={song.url}
         target="_blank"
         rel="noopener noreferrer"
         className="text-sky-600 hover:underline font-medium break-words"
       >
-        {formatSongTitle(song)}
+        {song.title || 'Ukjent sang'}
       </a>
+    );
+
+    return (
+      <div>
+        {titleEl}
+        {song.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
+      </div>
     );
   };
 
@@ -710,7 +710,12 @@ export function FolderView() {
           </div>
           {currentEntry && currentEntry.songs ? (
             <div className="mt-4 space-y-3">
-              <h2 className="text-2xl font-bold text-slate-900">{formatSongTitle(currentEntry.songs as Song)}</h2>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{(currentEntry.songs as Song).title || 'Ukjent sang'}</h2>
+                {(currentEntry.songs as Song).artist && (
+                  <p className="text-sm text-slate-500 mt-0.5">{(currentEntry.songs as Song).artist}</p>
+                )}
+              </div>
               {(currentEntry.songs as Song).content ? (
                 <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-white p-4">
                   <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-800">
