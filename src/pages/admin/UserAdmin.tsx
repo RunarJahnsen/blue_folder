@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type { GroupMember } from '@/lib/types';
-
-type ActionState =
-  | { type: 'confirm_role'; memberId: string; newRole: 'admin' | 'member' }
-  | { type: 'confirm_remove'; memberId: string }
-  | { type: 'reset_password'; memberId: string }
-  | null;
 
 export function UserAdmin() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -16,17 +16,39 @@ export function UserAdmin() {
   const { isAdmin, session } = useAuth();
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'member'>('member');
+
+  // Create user form
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<'admin' | 'member'>('member');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
 
-  const [actionState, setActionState] = useState<ActionState>(null);
-  const [resetPasswordInput, setResetPasswordInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [actionError, setActionError] = useState('');
+  // Edit dialog
+  const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Edit username section
+  const [editUsername, setEditUsername] = useState('');
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameSuccess, setUsernameSuccess] = useState('');
+
+  // Role section
+  const [isChangingRole, setIsChangingRole] = useState(false);
+  const [roleError, setRoleError] = useState('');
+
+  // Reset password section
+  const [editPassword, setEditPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  // Remove section
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState('');
 
   useEffect(() => {
     if (!groupId || !isAdmin(groupId)) {
@@ -67,6 +89,20 @@ export function UserAdmin() {
     return { ok: false, error: json.error ?? 'Noe gikk galt.' };
   }
 
+  function openDialog(member: GroupMember) {
+    setSelectedMember(member);
+    setEditUsername('');
+    setUsernameError('');
+    setUsernameSuccess('');
+    setEditPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setRoleError('');
+    setConfirmRemove(false);
+    setRemoveError('');
+    setDialogOpen(true);
+  }
+
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault();
     setCreateError('');
@@ -81,7 +117,7 @@ export function UserAdmin() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ username: username.trim(), password, groupId, role }),
+        body: JSON.stringify({ username: newUsername.trim(), password: newPassword, groupId, role: newRole }),
       }
     );
 
@@ -89,68 +125,97 @@ export function UserAdmin() {
     if (!response.ok) {
       setCreateError(body.error ?? 'Kunne ikke opprette bruker.');
     } else {
-      setCreateSuccess(`Bruker «${username.trim()}» er opprettet.`);
-      setUsername('');
-      setPassword('');
+      setCreateSuccess(`Bruker «${newUsername.trim()}» er opprettet.`);
+      setNewUsername('');
+      setNewPassword('');
       fetchMembers();
     }
     setIsCreating(false);
   }
 
-  async function handleConfirmRole() {
-    if (actionState?.type !== 'confirm_role') return;
-    setIsProcessing(true);
-    setActionError('');
-    const { memberId, newRole } = actionState;
-    const member = members.find((m) => m.id === memberId);
-    if (!member) { setIsProcessing(false); return; }
-    const result = await callManageUser({ action: 'change_role', groupId, userId: member.user_id, newRole });
+  async function handleSaveUsername() {
+    if (!selectedMember || !editUsername.trim()) return;
+    setIsSavingUsername(true);
+    setUsernameError('');
+    setUsernameSuccess('');
+    const result = await callManageUser({
+      action: 'admin_update_username',
+      groupId,
+      userId: selectedMember.user_id,
+      newUsername: editUsername.trim(),
+    });
     if (result.ok) {
-      setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, role: newRole } : m));
-      setActionState(null);
+      const trimmed = editUsername.trim();
+      setMembers((prev) =>
+        prev.map((m) => m.id === selectedMember.id ? { ...m, username: trimmed } : m)
+      );
+      setSelectedMember((prev) => prev ? { ...prev, username: trimmed } : prev);
+      setUsernameSuccess('Visningsnavn oppdatert.');
+      setEditUsername('');
     } else {
-      setActionError(result.error ?? 'Noe gikk galt.');
+      setUsernameError(result.error ?? 'Noe gikk galt.');
     }
-    setIsProcessing(false);
+    setIsSavingUsername(false);
   }
 
-  async function handleConfirmRemove() {
-    if (actionState?.type !== 'confirm_remove') return;
-    setIsProcessing(true);
-    setActionError('');
-    const { memberId } = actionState;
-    const member = members.find((m) => m.id === memberId);
-    if (!member) { setIsProcessing(false); return; }
-    const result = await callManageUser({ action: 'remove_member', groupId, userId: member.user_id });
+  async function handleToggleRole() {
+    if (!selectedMember) return;
+    setIsChangingRole(true);
+    setRoleError('');
+    const newRole = selectedMember.role === 'admin' ? 'member' : 'admin';
+    const result = await callManageUser({
+      action: 'change_role',
+      groupId,
+      userId: selectedMember.user_id,
+      newRole,
+    });
     if (result.ok) {
-      setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      setActionState(null);
+      setMembers((prev) =>
+        prev.map((m) => m.id === selectedMember.id ? { ...m, role: newRole } : m)
+      );
+      setSelectedMember((prev) => prev ? { ...prev, role: newRole } : prev);
     } else {
-      setActionError(result.error ?? 'Noe gikk galt.');
+      setRoleError(result.error ?? 'Noe gikk galt.');
     }
-    setIsProcessing(false);
+    setIsChangingRole(false);
   }
 
-  async function handleResetPassword(memberId: string) {
-    if (!resetPasswordInput.trim()) return;
-    setIsProcessing(true);
-    setActionError('');
-    const member = members.find((m) => m.id === memberId);
-    if (!member) { setIsProcessing(false); return; }
-    const result = await callManageUser({ action: 'reset_password', groupId, userId: member.user_id, newPassword: resetPasswordInput });
+  async function handleSavePassword() {
+    if (!selectedMember || !editPassword.trim()) return;
+    setIsSavingPassword(true);
+    setPasswordError('');
+    setPasswordSuccess('');
+    const result = await callManageUser({
+      action: 'reset_password',
+      groupId,
+      userId: selectedMember.user_id,
+      newPassword: editPassword,
+    });
     if (result.ok) {
-      setActionState(null);
-      setResetPasswordInput('');
+      setPasswordSuccess('Passord oppdatert.');
+      setEditPassword('');
     } else {
-      setActionError(result.error ?? 'Noe gikk galt.');
+      setPasswordError(result.error ?? 'Noe gikk galt.');
     }
-    setIsProcessing(false);
+    setIsSavingPassword(false);
   }
 
-  function cancelAction() {
-    setActionState(null);
-    setResetPasswordInput('');
-    setActionError('');
+  async function handleRemove() {
+    if (!selectedMember) return;
+    setIsRemoving(true);
+    setRemoveError('');
+    const result = await callManageUser({
+      action: 'remove_member',
+      groupId,
+      userId: selectedMember.user_id,
+    });
+    if (result.ok) {
+      setMembers((prev) => prev.filter((m) => m.id !== selectedMember.id));
+      setDialogOpen(false);
+    } else {
+      setRemoveError(result.error ?? 'Noe gikk galt.');
+      setIsRemoving(false);
+    }
   }
 
   return (
@@ -173,9 +238,9 @@ export function UserAdmin() {
               <label className="text-sm font-medium text-slate-700">Brukernavn</label>
               <input
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none max-w-xs"
                 autoCapitalize="none"
                 autoCorrect="off"
                 required
@@ -185,18 +250,18 @@ export function UserAdmin() {
               <label className="text-sm font-medium text-slate-700">Passord</label>
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none max-w-xs"
                 required
               />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-slate-700">Rolle</label>
               <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as 'admin' | 'member')}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value as 'admin' | 'member')}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none max-w-xs"
               >
                 <option value="member">Bruker</option>
                 <option value="admin">Admin</option>
@@ -222,130 +287,157 @@ export function UserAdmin() {
             <p className="text-sm text-slate-600">Ingen medlemmer ennå.</p>
           ) : (
             <div className="flex flex-col divide-y divide-slate-100">
-              {members.map((m) => {
-                const isActive = actionState?.memberId === m.id;
-                const newRole = m.role === 'admin' ? 'member' : 'admin';
-                return (
-                  <div key={m.id} className="flex flex-col gap-2 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium text-slate-800 truncate">{m.username}</span>
-                        <span
-                          className={`inline-flex flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            m.role === 'admin' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {m.role === 'admin' ? 'Admin' : 'Bruker'}
-                        </span>
-                      </div>
-                      {!isActive && (
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => { cancelAction(); setActionState({ type: 'confirm_role', memberId: m.id, newRole }); }}
-                            className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
-                          >
-                            {newRole === 'admin' ? 'Gjør admin' : 'Gjør bruker'}
-                          </button>
-                          <button
-                            onClick={() => { cancelAction(); setActionState({ type: 'confirm_remove', memberId: m.id }); }}
-                            className="rounded-full bg-red-50 text-red-600 text-xs font-semibold px-3 py-1 hover:bg-red-100 transition-colors"
-                          >
-                            Fjern
-                          </button>
-                          <button
-                            onClick={() => { cancelAction(); setActionState({ type: 'reset_password', memberId: m.id }); }}
-                            className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
-                          >
-                            Passord
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {isActive && actionState?.type === 'confirm_role' && (
-                      <div className="flex flex-col gap-2 pl-2">
-                        <p className="text-sm text-slate-700">
-                          Endre rolle til <strong>{newRole === 'admin' ? 'Admin' : 'Bruker'}</strong>?
-                        </p>
-                        {actionError && <p className="text-xs text-red-600">{actionError}</p>}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleConfirmRole}
-                            disabled={isProcessing}
-                            className="rounded-full bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
-                          >
-                            {isProcessing ? 'Lagrer…' : 'Bekreft'}
-                          </button>
-                          <button
-                            onClick={cancelAction}
-                            disabled={isProcessing}
-                            className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
-                          >
-                            Avbryt
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {isActive && actionState?.type === 'confirm_remove' && (
-                      <div className="flex flex-col gap-2 pl-2">
-                        <p className="text-sm text-slate-700">Er du sikker på at du vil fjerne <strong>{m.username}</strong>?</p>
-                        {actionError && <p className="text-xs text-red-600">{actionError}</p>}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleConfirmRemove}
-                            disabled={isProcessing}
-                            className="rounded-full bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 disabled:opacity-50 transition-colors"
-                          >
-                            {isProcessing ? 'Fjerner…' : 'Bekreft'}
-                          </button>
-                          <button
-                            onClick={cancelAction}
-                            disabled={isProcessing}
-                            className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
-                          >
-                            Avbryt
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {isActive && actionState?.type === 'reset_password' && (
-                      <div className="flex flex-col gap-2 pl-2">
-                        <p className="text-sm text-slate-700">Nytt passord for <strong>{m.username}</strong></p>
-                        <input
-                          type="password"
-                          value={resetPasswordInput}
-                          onChange={(e) => setResetPasswordInput(e.target.value)}
-                          placeholder="Nytt passord"
-                          className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none max-w-xs"
-                        />
-                        {actionError && <p className="text-xs text-red-600">{actionError}</p>}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleResetPassword(m.id)}
-                            disabled={isProcessing || !resetPasswordInput.trim()}
-                            className="rounded-full bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
-                          >
-                            {isProcessing ? 'Lagrer…' : 'Sett passord'}
-                          </button>
-                          <button
-                            onClick={cancelAction}
-                            disabled={isProcessing}
-                            className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
-                          >
-                            Avbryt
-                          </button>
-                        </div>
-                      </div>
-                    )}
+              {members.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-2 py-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-slate-800 truncate">{m.username}</span>
+                    <span
+                      className={`inline-flex flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        m.role === 'admin' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {m.role === 'admin' ? 'Admin' : 'Bruker'}
+                    </span>
                   </div>
-                );
-              })}
+                  <button
+                    onClick={() => openDialog(m)}
+                    className="flex-shrink-0 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
+                  >
+                    Rediger
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setDialogOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedMember?.username}
+              <span
+                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  selectedMember?.role === 'admin' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                {selectedMember?.role === 'admin' ? 'Admin' : 'Bruker'}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-5 pt-1">
+            {/* Change username */}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre visningsnavn</p>
+              <input
+                type="text"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                placeholder={selectedMember?.username ?? ''}
+                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
+              {usernameSuccess && <p className="text-xs text-green-600">{usernameSuccess}</p>}
+              <div>
+                <button
+                  onClick={handleSaveUsername}
+                  disabled={isSavingUsername || !editUsername.trim()}
+                  className="rounded-full bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingUsername ? 'Lagrer…' : 'Lagre'}
+                </button>
+              </div>
+            </div>
+
+            {/* Change role */}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Endre rolle</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-700">
+                  Nå: <strong>{selectedMember?.role === 'admin' ? 'Admin' : 'Bruker'}</strong>
+                </span>
+                <button
+                  onClick={handleToggleRole}
+                  disabled={isChangingRole}
+                  className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                >
+                  {isChangingRole
+                    ? 'Lagrer…'
+                    : selectedMember?.role === 'admin'
+                    ? 'Gjør til bruker'
+                    : 'Gjør til admin'}
+                </button>
+              </div>
+              {roleError && <p className="text-xs text-red-600">{roleError}</p>}
+            </div>
+
+            {/* Reset password */}
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tilbakestill passord</p>
+              <input
+                type="password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                placeholder="Nytt passord"
+                className="bg-white rounded-xl shadow-sm border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+              />
+              {passwordError && <p className="text-xs text-red-600">{passwordError}</p>}
+              {passwordSuccess && <p className="text-xs text-green-600">{passwordSuccess}</p>}
+              <div>
+                <button
+                  onClick={handleSavePassword}
+                  disabled={isSavingPassword || !editPassword.trim()}
+                  className="rounded-full bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingPassword ? 'Lagrer…' : 'Sett passord'}
+                </button>
+              </div>
+            </div>
+
+            {/* Remove */}
+            <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fjern fra gruppa</p>
+              {!confirmRemove ? (
+                <div>
+                  <button
+                    onClick={() => setConfirmRemove(true)}
+                    className="rounded-full bg-red-50 text-red-600 text-xs font-semibold px-3 py-1 hover:bg-red-100 transition-colors"
+                  >
+                    Fjern bruker
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm text-slate-700">
+                    Er du sikker på at du vil fjerne <strong>{selectedMember?.username}</strong>?
+                  </p>
+                  {removeError && <p className="text-xs text-red-600">{removeError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRemove}
+                      disabled={isRemoving}
+                      className="rounded-full bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 disabled:opacity-50 transition-colors"
+                    >
+                      {isRemoving ? 'Fjerner…' : 'Bekreft'}
+                    </button>
+                    <button
+                      onClick={() => { setConfirmRemove(false); setRemoveError(''); }}
+                      disabled={isRemoving}
+                      className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

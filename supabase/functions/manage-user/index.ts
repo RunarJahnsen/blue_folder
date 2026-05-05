@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     if (!caller) return err(401, 'Unauthorized');
 
     // ── Admin actions ─────────────────────────────────────────────────────────
-    if (action === 'change_role' || action === 'remove_member' || action === 'reset_password') {
+    if (action === 'change_role' || action === 'remove_member' || action === 'reset_password' || action === 'admin_update_username') {
       const { data: membership } = await adminClient
         .from('group_members')
         .select('role')
@@ -78,6 +78,16 @@ Deno.serve(async (req) => {
         if (!userId || !newPassword) return err(400, 'Missing userId or newPassword');
         const { error } = await adminClient.auth.admin.updateUserById(userId, { password: newPassword });
         if (error) return err(400, error.message);
+        return ok({ success: true });
+      }
+
+      if (action === 'admin_update_username') {
+        const { userId, newUsername } = body;
+        if (!userId || !newUsername?.trim()) return err(400, 'Missing userId or newUsername');
+        const trimmed = newUsername.trim();
+        await adminClient.from('group_members').update({ username: trimmed }).eq('user_id', userId).eq('group_id', groupId);
+        await adminClient.auth.admin.updateUserById(userId, { user_metadata: { username: trimmed } });
+        await adminClient.from('folders').update({ owner_username: trimmed }).eq('owner_user_id', userId);
         return ok({ success: true });
       }
     }
