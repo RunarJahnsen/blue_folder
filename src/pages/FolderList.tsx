@@ -2,6 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+
+async function pgHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return {
+    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 import { Button } from '@/components/ui/button';
 import type { Folder } from '@/lib/types';
 import {
@@ -15,7 +27,8 @@ import {
 export function FolderList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin, user, memberships } = useAuth();
+  const currentUsername = groupId ? memberships.find(m => m.group_id === groupId)?.username : undefined;
   const [folders, setFolders] = useState<Folder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,19 +44,25 @@ export function FolderList() {
     setError('');
 
     (async () => {
-      const { data, error } = await supabase
-        .from('folders')
-        .select('id, title, date, status, mode')
-        .eq('group_id', groupId)
-        .order('date', { ascending: true });
-
-      if (error) {
+      try {
+        const headers = await pgHeaders();
+        const res = await fetch(
+          `${BASE()}/rest/v1/folders?group_id=eq.${groupId}&select=id,title,date,status,mode,owner_user_id&order=date.asc`,
+          { headers }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          setError('Kunne ikke hente permer. Prøv igjen.');
+          setFolders([]);
+        } else if (Array.isArray(data)) {
+          setFolders(data as Folder[]);
+        }
+      } catch {
         setError('Kunne ikke hente permer. Prøv igjen.');
         setFolders([]);
-      } else if (data) {
-        setFolders(data as Folder[]);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     })();
   }, [groupId]);
 
@@ -71,7 +90,14 @@ export function FolderList() {
       onClick={() => navigate(`/${groupId}/folders/${folder.id}`)}
     >
       <CardHeader>
-        <CardTitle className="font-semibold">{folder.title}</CardTitle>
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="font-semibold">{folder.title}</CardTitle>
+          {folder.owner_user_id === user?.id && (
+            <span className="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
+              Din perm
+            </span>
+          )}
+        </div>
         <CardDescription>
           {folder.date} · {folder.mode.replace('_', ' ')}
         </CardDescription>
@@ -90,7 +116,9 @@ export function FolderList() {
         <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Permoversikt</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {currentUsername ? `Hei, ${currentUsername}` : 'Permoversikt'}
+            </h1>
             <p className="max-w-2xl text-sm text-slate-600">
               Se alle permer i gruppen og opprett en ny samling.
             </p>

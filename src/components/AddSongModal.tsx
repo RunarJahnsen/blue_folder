@@ -51,7 +51,7 @@ export function AddSongModal({
   const { memberships } = useAuth();
   const { guestCode } = useGuestSession();
   const addedBy = memberships.find(m => m.group_id === groupId)?.username ?? guestCode ?? null;
-  const [activeTab, setActiveTab] = useState<'url' | 'favorites' | 'all'>('url');
+  const [activeTab, setActiveTab] = useState<'url' | 'favorites' | 'all'>('favorites');
   const [groupFavorites, setGroupFavorites] = useState<FavoriteWithSong[]>([]);
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
   const [favoritesSearch, setFavoritesSearch] = useState('');
@@ -83,7 +83,7 @@ export function AddSongModal({
     (async () => {
       const headers = await pgHeaders();
       const res = await fetch(
-        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,song_tags(id,tag_id,tags(id,name)))`,
+        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,added_by,song_tags(id,tag_id,tags(id,name)))`,
         { headers }
       );
       const data = await res.json();
@@ -305,7 +305,7 @@ export function AddSongModal({
     setWarningSongId(null);
     setManualContent('');
     setIsSavingManual(false);
-    setActiveTab('url');
+    setActiveTab('favorites');
     setGroupFavorites([]);
     setFavoritesSearch('');
     setActiveFavFilterTags([]);
@@ -333,7 +333,8 @@ export function AddSongModal({
         const t = s.title?.toLowerCase() ?? '';
         const a = s.artist?.toLowerCase() ?? '';
         const c = s.content?.toLowerCase() ?? '';
-        return t.includes(q) || a.includes(q) || c.includes(q);
+        const ab = s.added_by?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q) || ab.includes(q);
       });
     }
     if (activeModalFilterTags.length > 0) {
@@ -364,7 +365,8 @@ export function AddSongModal({
         const t = fav.songs?.title?.toLowerCase() ?? '';
         const a = fav.songs?.artist?.toLowerCase() ?? '';
         const c = fav.songs?.content?.toLowerCase() ?? '';
-        return t.includes(q) || a.includes(q) || c.includes(q);
+        const ab = (fav.songs as unknown as { added_by?: string })?.added_by?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q) || ab.includes(q);
       });
     }
     if (activeFavFilterTags.length > 0) {
@@ -424,14 +426,6 @@ export function AddSongModal({
           <Button
             type="button"
             size="sm"
-            variant={activeTab === 'url' ? 'default' : 'outline'}
-            onClick={() => { setActiveTab('url'); setError(''); }}
-          >
-            Legg til URL
-          </Button>
-          <Button
-            type="button"
-            size="sm"
             variant={activeTab === 'favorites' ? 'default' : 'outline'}
             onClick={() => { setActiveTab('favorites'); setError(''); }}
           >
@@ -444,6 +438,14 @@ export function AddSongModal({
             onClick={() => { setActiveTab('all'); setError(''); }}
           >
             Alle sanger
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={activeTab === 'url' ? 'default' : 'outline'}
+            onClick={() => { setActiveTab('url'); setError(''); }}
+          >
+            Legg til URL
           </Button>
         </div>
 

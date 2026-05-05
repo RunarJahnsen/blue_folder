@@ -29,7 +29,8 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function SongList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { memberships } = useAuth();
+  const { memberships, isAdmin } = useAuth();
+  const currentUsername = groupId ? memberships.find(m => m.group_id === groupId)?.username : undefined;
   const [songs, setSongs] = useState<SongWithTags[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
@@ -380,13 +381,15 @@ export function SongList() {
                       >
                         Rediger
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setConfirmDeleteId(song.id)}
-                      >
-                        Slett
-                      </Button>
+                      {(isAdmin(groupId!) || song.added_by === currentUsername) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfirmDeleteId(song.id)}
+                        >
+                          Slett
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
