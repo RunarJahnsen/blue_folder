@@ -38,6 +38,8 @@ export function SongList() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeFilterTags, setActiveFilterTags] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const [activeAddedByFilter, setActiveAddedByFilter] = useState<string[]>([]);
 
   const [editingSong, setEditingSong] = useState<SongWithTags | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -94,12 +96,32 @@ export function SongList() {
     return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [songs]);
 
+  const uniqueAddedBy = useMemo(() => {
+    const set = new Set<string>();
+    songs.forEach(s => { if (s.added_by) set.add(s.added_by); });
+    return Array.from(set).sort();
+  }, [songs]);
+
   const filteredSongs = useMemo(() => {
-    if (activeFilterTags.length === 0) return songs;
-    return songs.filter(song =>
-      activeFilterTags.some(tagId => song.song_tags?.some(st => st.tag_id === tagId))
-    );
-  }, [songs, activeFilterTags]);
+    let result = songs;
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(s =>
+        (s.title?.toLowerCase() ?? '').includes(q) ||
+        (s.artist?.toLowerCase() ?? '').includes(q) ||
+        (s.content?.toLowerCase() ?? '').includes(q)
+      );
+    }
+    if (activeAddedByFilter.length > 0) {
+      result = result.filter(s => s.added_by && activeAddedByFilter.includes(s.added_by));
+    }
+    if (activeFilterTags.length > 0) {
+      result = result.filter(song =>
+        activeFilterTags.some(tagId => song.song_tags?.some(st => st.tag_id === tagId))
+      );
+    }
+    return result;
+  }, [songs, search, activeAddedByFilter, activeFilterTags]);
 
   const tagSuggestions = useMemo(() => {
     const q = tagInput.trim().toLowerCase();
@@ -321,6 +343,48 @@ export function SongList() {
           <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error}</div>
         )}
 
+        <Input
+          type="search"
+          placeholder="Søk på tittel, artist eller tekst…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        {/* Added-by filter */}
+        {uniqueAddedBy.length > 1 && (
+          <div className="flex flex-wrap gap-2 px-1">
+            {uniqueAddedBy.map(name => (
+              <button
+                key={name}
+                type="button"
+                onClick={() =>
+                  setActiveAddedByFilter(prev =>
+                    prev.includes(name)
+                      ? prev.filter(n => n !== name)
+                      : [...prev, name]
+                  )
+                }
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                  activeAddedByFilter.includes(name)
+                    ? 'bg-sky-500 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+            {activeAddedByFilter.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveAddedByFilter([])}
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200 border-0"
+              >
+                Nullstill
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Tag filter */}
         {tagsInUse.length > 0 && (
           <div className="flex flex-wrap gap-2 px-1">
@@ -360,7 +424,7 @@ export function SongList() {
           <div className="rounded-2xl bg-white p-6 text-slate-700 shadow-sm">Henter sanger…</div>
         ) : filteredSongs.length === 0 ? (
           <Card className="bg-slate-50 text-slate-600 text-sm">
-            <CardContent>{songs.length === 0 ? 'Ingen sanger ennå.' : 'Ingen sanger matcher valgte tagger.'}</CardContent>
+            <CardContent>{songs.length === 0 ? 'Ingen sanger ennå.' : 'Ingen sanger matcher søket eller valgte filtre.'}</CardContent>
           </Card>
         ) : (
           <div className="divide-y divide-slate-100 rounded-2xl bg-white shadow-sm overflow-hidden">
