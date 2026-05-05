@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useGuestSession } from '@/hooks/useGuestSession';
-import type { Favorite, Song, SongWithTags, Tag } from '@/lib/types';
+import type { Favorite, Song, SongWithTags, Tag, UserFavorite } from '@/lib/types';
 import {
   Sheet,
   SheetContent,
@@ -48,10 +48,14 @@ export function AddSongModal({
   maxPosition,
   onSongAdded,
 }: AddSongModalProps) {
-  const { memberships } = useAuth();
+  const { memberships, user } = useAuth();
   const { guestCode } = useGuestSession();
   const addedBy = memberships.find(m => m.group_id === groupId)?.username ?? guestCode ?? null;
-  const [activeTab, setActiveTab] = useState<'url' | 'favorites' | 'all'>('favorites');
+  const [activeTab, setActiveTab] = useState<'mine' | 'url' | 'favorites' | 'all'>(user ? 'mine' : 'favorites');
+  const [userFavorites, setUserFavorites] = useState<UserFavorite[]>([]);
+  const [isFetchingUserFavs, setIsFetchingUserFavs] = useState(false);
+  const [userFavsSearch, setUserFavsSearch] = useState('');
+  const [mineSongs, setMineSongs] = useState<SongWithTags[]>([]);
   const [groupFavorites, setGroupFavorites] = useState<FavoriteWithSong[]>([]);
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
   const [favoritesSearch, setFavoritesSearch] = useState('');
@@ -86,6 +90,29 @@ export function AddSongModal({
   const [warningSongId, setWarningSongId] = useState<string | null>(null);
   const [manualContent, setManualContent] = useState('');
   const [isSavingManual, setIsSavingManual] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'mine' || !groupId || !user) return;
+    setIsFetchingUserFavs(true);
+    (async () => {
+      const headers = await pgHeaders();
+      const res = await fetch(
+        `${BASE()}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id,songs(id,title,artist,url,content,added_by,song_tags(id,tag_id,tags(id,name)))`,
+        { headers }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setUserFavorites(data as unknown as UserFavorite[]);
+        setMineSongs(
+          (data as unknown as Array<UserFavorite & { songs: SongWithTags }>)
+            .map((r) => r.songs)
+            .filter(Boolean)
+            .sort((a, b) => a.title.localeCompare(b.title))
+        );
+      }
+      setIsFetchingUserFavs(false);
+    })();
+  }, [activeTab, groupId, user]);
 
   useEffect(() => {
     if (activeTab !== 'favorites' || !groupId) return;
@@ -343,7 +370,11 @@ export function AddSongModal({
     setManualContent('');
     setIsSavingManual(false);
     setSelectedSongIds(new Set());
-    setActiveTab('favorites');
+    setActiveTab(user ? 'mine' : 'favorites');
+    setUserFavorites([]);
+    setMineSongs([]);
+    setUserFavsSearch('');
+    setIsFetchingUserFavs(false);
     setGroupFavorites([]);
     setFavoritesSearch('');
     setActiveFavFilterTags([]);
@@ -362,6 +393,17 @@ export function AddSongModal({
     setError('');
     onClose();
   };
+
+  const filteredMineSongs = (() => {
+    const q = userFavsSearch.trim().toLowerCase();
+    if (!q) return mineSongs;
+    return mineSongs.filter((s) => {
+      const t = s.title?.toLowerCase() ?? '';
+      const a = s.artist?.toLowerCase() ?? '';
+      const c = s.content?.toLowerCase() ?? '';
+      return t.includes(q) || a.includes(q) || c.includes(q);
+    });
+  })();
 
   const filteredAllSongs = (() => {
     const q = allSongsSearch.trim().toLowerCase();
@@ -461,13 +503,23 @@ export function AddSongModal({
         <>
         {/* Tab toggle */}
         <div className="flex gap-2 mt-4 flex-wrap">
+          {user && (
+            <Button
+              type="button"
+              size="sm"
+              variant={activeTab === 'mine' ? 'default' : 'outline'}
+              onClick={() => { setActiveTab('mine'); setError(''); }}
+            >
+              Mine
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"
             variant={activeTab === 'favorites' ? 'default' : 'outline'}
             onClick={() => { setActiveTab('favorites'); setError(''); }}
           >
-            Favoritter
+            Gruppe
           </Button>
           <Button
             type="button"
@@ -610,6 +662,68 @@ export function AddSongModal({
               </div>
             )}
           </>
+        )}
+
+        {/* Mine tab */}
+        {activeTab === 'mine' && (
+          <div className="mt-6 space-y-4">
+            <Input
+              type="text"
+              placeholder="Søk på artist, tittel eller tekst…"
+              value={userFavsSearch}
+              onChange={(e) => setUserFavsSearch(e.target.value)}
+              disabled={isFetchingUserFavs}
+            />
+            {isFetchingUserFavs ? (
+              <p className="text-sm text-slate-500">Henter favoritter…</p>
+            ) : mineSongs.length === 0 ? (
+              <p className="text-sm text-slate-500">Du har ingen personlige favoritter ennå. Stjernemerk sanger i sangoversikten for å finne dem her.</p>
+            ) : filteredMineSongs.length === 0 ? (
+              <p className="text-sm text-slate-500">Ingen treff.</p>
+            ) : (
+              <>
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                {filteredMineSongs.map((song) => (
+                  <div key={song.id} className="flex items-center gap-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSongIds.has(song.id)}
+                      onChange={() => toggleSong(song.id)}
+                      className="h-4 w-4 flex-shrink-0 cursor-pointer accent-sky-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => createFolderSongEntry(song.id)}
+                      className="flex-1 min-w-0 text-left border-0 bg-transparent p-0 hover:opacity-70 transition-opacity"
+                    >
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {song.artist ? `${song.artist} — ${song.title}` : song.title}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {song.url ? truncateUrl(song.url) : 'Sangtekst'}
+                      </p>
+                      {(song as SongWithTags).song_tags && (song as SongWithTags).song_tags!.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(song as SongWithTags).song_tags!.map(st => st.tags && (
+                            <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
+                              {st.tags.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {selectedSongIds.size > 0 && (
+                <Button className="w-full" onClick={handleAddSelected} disabled={isLoading}>
+                  {isLoading ? 'Legger til…' : `Legg til ${selectedSongIds.size} ${selectedSongIds.size === 1 ? 'sang' : 'sanger'}`}
+                </Button>
+              )}
+              </>
+            )}
+            {error && <div className="text-sm text-red-600">{error}</div>}
+          </div>
         )}
 
         {/* Favorites tab */}

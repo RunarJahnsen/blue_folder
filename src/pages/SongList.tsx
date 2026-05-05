@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Plus, X } from 'lucide-react';
+import { ArrowLeft, Heart, Plus, Star, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Favorite, SongWithTags, Tag, SongTagEntry } from '@/lib/types';
+import type { Favorite, SongWithTags, Tag, SongTagEntry, UserFavorite } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,10 +29,11 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function SongList() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, username } = useAuth();
+  const { isAdmin, username, user } = useAuth();
   const [songs, setSongs] = useState<SongWithTags[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [userFavorites, setUserFavorites] = useState<UserFavorite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -65,18 +66,20 @@ export function SongList() {
     (async () => {
       const headers = await pgHeaders();
       const base = BASE();
-      const [songsRes, favsRes, tagsRes] = await Promise.all([
+      const [songsRes, favsRes, tagsRes, userFavsRes] = await Promise.all([
         fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
         fetch(`${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
         fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
+        fetch(`${base}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
       ]);
-      const [songsData, favsData, tagsData] = await Promise.all([
-        songsRes.json(), favsRes.json(), tagsRes.json(),
+      const [songsData, favsData, tagsData, userFavsData] = await Promise.all([
+        songsRes.json(), favsRes.json(), tagsRes.json(), userFavsRes.json(),
       ]);
       if (!Array.isArray(songsData)) setError('Kunne ikke hente sanger.');
       else setSongs(songsData as unknown as SongWithTags[]);
       if (Array.isArray(favsData)) setFavorites(favsData as Favorite[]);
       if (Array.isArray(tagsData)) setAllTags(tagsData as Tag[]);
+      if (Array.isArray(userFavsData)) setUserFavorites(userFavsData as UserFavorite[]);
       setIsLoading(false);
     })();
   }, [groupId]);
@@ -85,6 +88,34 @@ export function SongList() {
     () => new Set(favorites.map((f) => f.song_id)),
     [favorites]
   );
+
+  const userFavoriteSongIds = useMemo(
+    () => new Set(userFavorites.map((f) => f.song_id)),
+    [userFavorites]
+  );
+
+  const handleToggleUserFavorite = async (songId: string) => {
+    if (!groupId || !user) return;
+    const headers = await pgHeaders();
+    const base = BASE();
+    if (userFavoriteSongIds.has(songId)) {
+      const existing = userFavorites.find((f) => f.song_id === songId);
+      if (!existing) return;
+      const res = await fetch(`${base}/rest/v1/user_favorites?id=eq.${existing.id}`, { method: 'DELETE', headers });
+      if (!res.ok) return;
+      setUserFavorites((prev) => prev.filter((f) => f.song_id !== songId));
+    } else {
+      const res = await fetch(`${base}/rest/v1/user_favorites`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ user_id: user.id, song_id: songId, group_id: groupId }),
+      });
+      if (!res.ok) return;
+      const raw = await res.json();
+      const data = Array.isArray(raw) ? raw[0] : raw;
+      if (data) setUserFavorites((prev) => [...prev, data as UserFavorite]);
+    }
+  };
 
   const tagsInUse = useMemo(() => {
     const tagMap = new Map<string, Tag>();
@@ -491,7 +522,19 @@ export function SongList() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {user && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleUserFavorite(song.id)}
+                          className="border-0 bg-transparent p-1.5 transition-colors"
+                          aria-label={userFavoriteSongIds.has(song.id) ? 'Fjern personlig favoritt' : 'Legg til personlig favoritt'}
+                        >
+                          <Star
+                            className={`h-4 w-4 ${userFavoriteSongIds.has(song.id) ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}`}
+                          />
+                        </button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"

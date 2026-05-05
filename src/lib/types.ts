@@ -56,6 +56,14 @@ export interface Favorite {
   created_at: string;
 }
 
+export interface UserFavorite {
+  id: string;
+  user_id: string;
+  song_id: string;
+  group_id: string;
+  created_at: string;
+}
+
 export interface Tag {
   id: string;
   group_id: string;
