@@ -93,7 +93,7 @@ function SortableQueueItem({
                   type="button"
                   {...attributes}
                   {...listeners}
-                  className="flex-shrink-0 mt-0.5 border-0 bg-transparent p-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 touch-none"
+                  className="flex-shrink-0 border-0 bg-transparent p-1.5 -ml-1.5 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 touch-none"
                   aria-label="Dra for å sortere"
                 >
                   <GripVertical className="h-4 w-4" />
@@ -109,7 +109,7 @@ function SortableQueueItem({
               <button
                 type="button"
                 onClick={() => song?.id && onToggleFavorite(song.id)}
-                className="flex-shrink-0 border-0 bg-transparent p-0 transition-colors"
+                className="flex-shrink-0 border-0 bg-transparent p-2 -mr-2 transition-colors"
               >
                 <Heart className={`h-4 w-4 ${isFavorite ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
               </button>
@@ -1000,16 +1000,16 @@ export function FolderView() {
                         <div className="flex-1 min-w-0">{renderSongLink(entry)}</div>
                         <button
                           type="button"
-                          onClick={() => handleToggleFavorite((entry.songs as any)?.id)}
-                          className="flex-shrink-0 border-0 bg-transparent p-0 transition-colors"
+                          onClick={() => entry.songs?.id && handleToggleFavorite(entry.songs.id)}
+                          className="flex-shrink-0 border-0 bg-transparent p-2 -mr-2 transition-colors"
                         >
                           <Heart
-                            className={`h-4 w-4 ${favoriteSongIds.has((entry.songs as any)?.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`}
+                            className={`h-4 w-4 ${favoriteSongIds.has(entry.songs?.id ?? '') ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`}
                           />
                         </button>
                       </div>
                       {showQueueControls && (
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-2 justify-end flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => handleMoveToBottom(entry)}>
                             Flytt nederst
                           </Button>
