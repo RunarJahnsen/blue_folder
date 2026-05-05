@@ -43,7 +43,7 @@ export function SongList() {
   const [activeAddedByFilter, setActiveAddedByFilter] = useState<string[]>([]);
   const [filterMyFavorites, setFilterMyFavorites] = useState(false);
   const [filterGroupFavorites, setFilterGroupFavorites] = useState(false);
-  const [sortBy, setSortBy] = useState<'alpha' | 'plays' | 'recent'>('alpha');
+  const [sortBy, setSortBy] = useState<'alpha-asc' | 'alpha-desc' | 'artist-asc' | 'artist-desc' | 'plays' | 'recent' | 'newest' | 'oldest'>('alpha-asc');
   const [playedEntries, setPlayedEntries] = useState<Array<{ song_id: string; played_at: string | null }>>([]);
 
   const [editingSong, setEditingSong] = useState<SongWithTags | null>(null);
@@ -202,7 +202,15 @@ export function SongList() {
     if (filterGroupFavorites) {
       result = result.filter(s => favoriteSongIds.has(s.id));
     }
-    if (sortBy === 'plays') {
+    if (sortBy === 'alpha-asc') {
+      result = [...result].sort((a, b) => a.title.localeCompare(b.title, 'nb'));
+    } else if (sortBy === 'alpha-desc') {
+      result = [...result].sort((a, b) => b.title.localeCompare(a.title, 'nb'));
+    } else if (sortBy === 'artist-asc') {
+      result = [...result].sort((a, b) => (a.artist ?? a.title).localeCompare(b.artist ?? b.title, 'nb'));
+    } else if (sortBy === 'artist-desc') {
+      result = [...result].sort((a, b) => (b.artist ?? b.title).localeCompare(a.artist ?? a.title, 'nb'));
+    } else if (sortBy === 'plays') {
       result = [...result].sort((a, b) => (playStats.get(b.id)?.count ?? 0) - (playStats.get(a.id)?.count ?? 0));
     } else if (sortBy === 'recent') {
       result = [...result].sort((a, b) => {
@@ -210,6 +218,10 @@ export function SongList() {
         const bDate = playStats.get(b.id)?.lastPlayedAt ?? '';
         return bDate.localeCompare(aDate);
       });
+    } else if (sortBy === 'newest') {
+      result = [...result].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    } else if (sortBy === 'oldest') {
+      result = [...result].sort((a, b) => a.created_at.localeCompare(b.created_at));
     }
     return result;
   }, [songs, search, activeAddedByFilter, activeFilterTags, filterMyFavorites, filterGroupFavorites, userFavoriteSongIds, favoriteSongIds, sortBy, playStats]);
@@ -444,12 +456,17 @@ export function SongList() {
           />
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'alpha' | 'plays' | 'recent')}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
             className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           >
-            <option value="alpha">A–Å</option>
+            <option value="alpha-asc">Tittel A–Å</option>
+            <option value="alpha-desc">Tittel Å–A</option>
+            <option value="artist-asc">Artist A–Å</option>
+            <option value="artist-desc">Artist Å–A</option>
             <option value="plays">Mest spilt</option>
             <option value="recent">Sist spilt</option>
+            <option value="newest">Nyest lagt til</option>
+            <option value="oldest">Eldst lagt til</option>
           </select>
         </div>
 
