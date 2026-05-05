@@ -63,6 +63,16 @@ export function AddSongModal({
   const [allModalTags, setAllModalTags] = useState<Tag[]>([]);
   const [activeModalFilterTags, setActiveModalFilterTags] = useState<string[]>([]);
 
+  const [selectedSongIds, setSelectedSongIds] = useState<Set<string>>(new Set());
+
+  const toggleSong = (songId: string) => {
+    setSelectedSongIds(prev => {
+      const next = new Set(prev);
+      if (next.has(songId)) next.delete(songId); else next.add(songId);
+      return next;
+    });
+  };
+
   const [inputMode, setInputMode] = useState<InputMode>('url');
   const [step, setStep] = useState<Step>('input');
   const [url, setUrl] = useState('');
@@ -300,11 +310,39 @@ export function AddSongModal({
     handleClose();
   };
 
+  const handleAddSelected = async () => {
+    const ids = Array.from(selectedSongIds);
+    if (ids.length === 0) return;
+    setIsLoading(true);
+    const state = folderMode === 'suggest' ? 'suggested' : 'queued';
+    const headers = await pgHeaders();
+    const entries = ids.map((songId, i) => ({
+      group_id: groupId,
+      folder_id: folderId,
+      song_id: songId,
+      state,
+      ...(folderMode !== 'suggest' ? { position: maxPosition + 1 + i } : {}),
+    }));
+    const res = await fetch(`${BASE()}/rest/v1/folder_song_entries`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(entries),
+    });
+    setIsLoading(false);
+    if (!res.ok) {
+      setError('Kunne ikke legge til sanger i permen.');
+      return;
+    }
+    onSongAdded();
+    handleClose();
+  };
+
   const handleClose = () => {
     setShowFetchWarning(false);
     setWarningSongId(null);
     setManualContent('');
     setIsSavingManual(false);
+    setSelectedSongIds(new Set());
     setActiveTab('favorites');
     setGroupFavorites([]);
     setFavoritesSearch('');
@@ -617,19 +655,31 @@ export function AddSongModal({
             ) : (
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {filteredFavorites.map((fav) => (
-                  <button
-                    key={fav.id}
-                    type="button"
-                    onClick={() => createFolderSongEntry(fav.songs.id)}
-                    className="w-full text-left border-0 bg-transparent px-0 py-3 hover:opacity-70 transition-opacity"
-                  >
-                    <p className="text-sm font-medium text-slate-900">
-                      {fav.songs.artist ? `${fav.songs.artist} — ${fav.songs.title}` : fav.songs.title}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">{truncateUrl(fav.songs.url)}</p>
-                  </button>
+                  <div key={fav.id} className="flex items-center gap-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSongIds.has(fav.songs.id)}
+                      onChange={() => toggleSong(fav.songs.id)}
+                      className="h-4 w-4 flex-shrink-0 cursor-pointer accent-sky-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => createFolderSongEntry(fav.songs.id)}
+                      className="flex-1 min-w-0 text-left border-0 bg-transparent p-0 hover:opacity-70 transition-opacity"
+                    >
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {fav.songs.artist ? `${fav.songs.artist} — ${fav.songs.title}` : fav.songs.title}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">{truncateUrl(fav.songs.url)}</p>
+                    </button>
+                  </div>
                 ))}
               </div>
+              {selectedSongIds.size > 0 && (
+                <Button className="w-full" onClick={handleAddSelected} disabled={isLoading}>
+                  {isLoading ? 'Legger til…' : `Legg til ${selectedSongIds.size} ${selectedSongIds.size === 1 ? 'sang' : 'sanger'}`}
+                </Button>
+              )}
             )}
             {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
@@ -678,30 +728,42 @@ export function AddSongModal({
             ) : (
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {filteredAllSongs.map((song) => (
-                  <button
-                    key={song.id}
-                    type="button"
-                    onClick={() => createFolderSongEntry(song.id)}
-                    className="w-full text-left border-0 bg-transparent px-0 py-3 hover:opacity-70 transition-opacity"
-                  >
-                    <p className="text-sm font-medium text-slate-900">
-                      {song.artist ? `${song.artist} — ${song.title}` : song.title}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {song.url ? truncateUrl(song.url) : 'Sangtekst'}
-                    </p>
-                    {(song as SongWithTags).song_tags && (song as SongWithTags).song_tags!.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {(song as SongWithTags).song_tags!.map(st => st.tags && (
-                          <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
-                            {st.tags.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </button>
+                  <div key={song.id} className="flex items-center gap-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSongIds.has(song.id)}
+                      onChange={() => toggleSong(song.id)}
+                      className="h-4 w-4 flex-shrink-0 cursor-pointer accent-sky-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => createFolderSongEntry(song.id)}
+                      className="flex-1 min-w-0 text-left border-0 bg-transparent p-0 hover:opacity-70 transition-opacity"
+                    >
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {song.artist ? `${song.artist} — ${song.title}` : song.title}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {song.url ? truncateUrl(song.url) : 'Sangtekst'}
+                      </p>
+                      {(song as SongWithTags).song_tags && (song as SongWithTags).song_tags!.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(song as SongWithTags).song_tags!.map(st => st.tags && (
+                            <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
+                              {st.tags.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  </div>
                 ))}
               </div>
+              {selectedSongIds.size > 0 && (
+                <Button className="w-full" onClick={handleAddSelected} disabled={isLoading}>
+                  {isLoading ? 'Legger til…' : `Legg til ${selectedSongIds.size} ${selectedSongIds.size === 1 ? 'sang' : 'sanger'}`}
+                </Button>
+              )}
             )}
             {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
