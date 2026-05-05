@@ -41,6 +41,8 @@ export function SongList() {
   const [activeFilterTags, setActiveFilterTags] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [activeAddedByFilter, setActiveAddedByFilter] = useState<string[]>([]);
+  const [filterMyFavorites, setFilterMyFavorites] = useState(false);
+  const [filterGroupFavorites, setFilterGroupFavorites] = useState(false);
 
   const [editingSong, setEditingSong] = useState<SongWithTags | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -174,8 +176,14 @@ export function SongList() {
         activeFilterTags.some(tagId => song.song_tags?.some(st => st.tag_id === tagId))
       );
     }
+    if (filterMyFavorites) {
+      result = result.filter(s => userFavoriteSongIds.has(s.id));
+    }
+    if (filterGroupFavorites) {
+      result = result.filter(s => favoriteSongIds.has(s.id));
+    }
     return result;
-  }, [songs, search, activeAddedByFilter, activeFilterTags]);
+  }, [songs, search, activeAddedByFilter, activeFilterTags, filterMyFavorites, filterGroupFavorites, userFavoriteSongIds, favoriteSongIds]);
 
   const tagSuggestions = useMemo(() => {
     const q = tagInput.trim().toLowerCase();
@@ -403,6 +411,30 @@ export function SongList() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        {/* Favorite filters — only for logged-in users */}
+        {user && (
+          <div className="flex flex-wrap gap-2 px-1">
+            <button
+              type="button"
+              onClick={() => setFilterMyFavorites(prev => !prev)}
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                filterMyFavorites ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Mine favoritter
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterGroupFavorites(prev => !prev)}
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                filterGroupFavorites ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Felles favoritter
+            </button>
+          </div>
+        )}
 
         {/* Added-by filter */}
         {uniqueAddedBy.length > 1 && (

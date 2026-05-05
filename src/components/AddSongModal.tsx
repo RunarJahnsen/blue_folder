@@ -516,7 +516,7 @@ export function AddSongModal({
             variant={activeTab === 'favorites' ? 'default' : 'outline'}
             onClick={() => { setActiveTab('favorites'); setError(''); }}
           >
-            Gruppe
+            Felles favoritter
           </Button>
           <Button
             type="button"
