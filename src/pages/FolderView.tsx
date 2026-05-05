@@ -18,7 +18,6 @@ import {
 import { AddSongModal } from '@/components/AddSongModal';
 import { SongContentSheet } from '@/components/SongContentSheet';
 import { useAuth } from '@/hooks/useAuth';
-import { useGuestSession } from '@/hooks/useGuestSession';
 
 interface SongWithEntry extends FolderSongEntry {
   songs?: Song;
@@ -213,8 +212,6 @@ export function FolderView() {
     [favorites]
   );
 
-  const { isGuest, guestFolderId } = useGuestSession();
-  const isCurrentGuest = isGuest && guestFolderId === folderId;
   const isHost = folder?.owner_user_id === user?.id || isAdmin(groupId!);
   const showQueueControls = folder?.mode === 'open' || isHost;
 
