@@ -43,6 +43,8 @@ export function SongList() {
   const [activeAddedByFilter, setActiveAddedByFilter] = useState<string[]>([]);
   const [filterMyFavorites, setFilterMyFavorites] = useState(false);
   const [filterGroupFavorites, setFilterGroupFavorites] = useState(false);
+  const [sortBy, setSortBy] = useState<'alpha' | 'plays' | 'recent'>('alpha');
+  const [playedEntries, setPlayedEntries] = useState<Array<{ song_id: string; played_at: string | null }>>([]);
 
   const [editingSong, setEditingSong] = useState<SongWithTags | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -68,20 +70,22 @@ export function SongList() {
     (async () => {
       const headers = await pgHeaders();
       const base = BASE();
-      const [songsRes, favsRes, tagsRes, userFavsRes] = await Promise.all([
+      const [songsRes, favsRes, tagsRes, userFavsRes, playedRes] = await Promise.all([
         fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
         fetch(`${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
         fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
         fetch(`${base}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
+        fetch(`${base}/rest/v1/folder_song_entries?group_id=eq.${groupId}&state=eq.played&select=song_id,played_at`, { headers }),
       ]);
-      const [songsData, favsData, tagsData, userFavsData] = await Promise.all([
-        songsRes.json(), favsRes.json(), tagsRes.json(), userFavsRes.json(),
+      const [songsData, favsData, tagsData, userFavsData, playedData] = await Promise.all([
+        songsRes.json(), favsRes.json(), tagsRes.json(), userFavsRes.json(), playedRes.json(),
       ]);
       if (!Array.isArray(songsData)) setError('Kunne ikke hente sanger.');
       else setSongs(songsData as unknown as SongWithTags[]);
       if (Array.isArray(favsData)) setFavorites(favsData as Favorite[]);
       if (Array.isArray(tagsData)) setAllTags(tagsData as Tag[]);
       if (Array.isArray(userFavsData)) setUserFavorites(userFavsData as UserFavorite[]);
+      if (Array.isArray(playedData)) setPlayedEntries(playedData as Array<{ song_id: string; played_at: string | null }>);
       setIsLoading(false);
     })();
   }, [groupId]);
@@ -95,6 +99,22 @@ export function SongList() {
     () => new Set(userFavorites.map((f) => f.song_id)),
     [userFavorites]
   );
+
+  const playStats = useMemo(() => {
+    const map = new Map<string, { count: number; lastPlayedAt: string | null }>();
+    for (const e of playedEntries) {
+      const existing = map.get(e.song_id);
+      if (!existing) {
+        map.set(e.song_id, { count: 1, lastPlayedAt: e.played_at });
+      } else {
+        const newer = e.played_at && (!existing.lastPlayedAt || e.played_at > existing.lastPlayedAt)
+          ? e.played_at
+          : existing.lastPlayedAt;
+        map.set(e.song_id, { count: existing.count + 1, lastPlayedAt: newer });
+      }
+    }
+    return map;
+  }, [playedEntries]);
 
   const handleToggleFavorite = async (songId: string) => {
     if (!groupId) return;
@@ -182,8 +202,17 @@ export function SongList() {
     if (filterGroupFavorites) {
       result = result.filter(s => favoriteSongIds.has(s.id));
     }
+    if (sortBy === 'plays') {
+      result = [...result].sort((a, b) => (playStats.get(b.id)?.count ?? 0) - (playStats.get(a.id)?.count ?? 0));
+    } else if (sortBy === 'recent') {
+      result = [...result].sort((a, b) => {
+        const aDate = playStats.get(a.id)?.lastPlayedAt ?? '';
+        const bDate = playStats.get(b.id)?.lastPlayedAt ?? '';
+        return bDate.localeCompare(aDate);
+      });
+    }
     return result;
-  }, [songs, search, activeAddedByFilter, activeFilterTags, filterMyFavorites, filterGroupFavorites, userFavoriteSongIds, favoriteSongIds]);
+  }, [songs, search, activeAddedByFilter, activeFilterTags, filterMyFavorites, filterGroupFavorites, userFavoriteSongIds, favoriteSongIds, sortBy, playStats]);
 
   const tagSuggestions = useMemo(() => {
     const q = tagInput.trim().toLowerCase();
@@ -405,12 +434,24 @@ export function SongList() {
           <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error}</div>
         )}
 
-        <Input
-          type="search"
-          placeholder="Søk på tittel, artist eller tekst…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="flex gap-2">
+          <Input
+            type="search"
+            placeholder="Søk på tittel, artist eller tekst…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1"
+          />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'alpha' | 'plays' | 'recent')}
+            className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            <option value="alpha">A–Å</option>
+            <option value="plays">Mest spilt</option>
+            <option value="recent">Sist spilt</option>
+          </select>
+        </div>
 
         {/* Favorite filters — only for logged-in users */}
         {user && (
@@ -580,6 +621,18 @@ export function SongList() {
                             ))}
                           </div>
                         )}
+                        {(() => {
+                          const stat = playStats.get(song.id);
+                          if (!stat || stat.count === 0) return null;
+                          const lastPlayed = stat.lastPlayedAt
+                            ? new Date(stat.lastPlayedAt).toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                            : null;
+                          return (
+                            <p className="text-xs text-slate-400 mt-1">
+                              Spilt {stat.count} {stat.count === 1 ? 'gang' : 'ganger'}{lastPlayed ? ` · Sist: ${lastPlayed}` : ''}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
