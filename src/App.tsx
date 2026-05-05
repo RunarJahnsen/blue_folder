@@ -10,6 +10,7 @@ import { UserAdmin } from './pages/admin/UserAdmin';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, isLoading } = useAuth();
+  console.log('[App] ProtectedRoute — isLoading:', isLoading, 'session:', session?.user?.id ?? null);
   if (isLoading) return null;
   if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;

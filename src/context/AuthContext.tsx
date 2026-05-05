@@ -16,31 +16,40 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchMemberships(userId: string): Promise<GroupMember[]> {
   try {
-    const { data, error } = await supabase
-      .from('group_members')
-      .select('*')
-      .eq('user_id', userId);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const headers = {
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      Authorization: `Bearer ${token}`,
+    };
+    const base = import.meta.env.VITE_SUPABASE_URL as string;
 
-    if (error) {
-      console.error('[AuthContext] group_members query error:', error);
+    const membRes = await fetch(
+      `${base}/rest/v1/group_members?user_id=eq.${userId}&select=*`,
+      { headers }
+    );
+    const membData = await membRes.json();
+    if (!Array.isArray(membData)) {
+      console.error('[AuthContext] group_members fetch error:', membData);
       return [];
     }
-
-    const memberships = (data ?? []) as GroupMember[];
+    const memberships = membData as GroupMember[];
     if (memberships.length === 0) return [];
 
     const groupIds = memberships.map((m) => m.group_id);
-    const { data: groups, error: groupsError } = await supabase
-      .from('groups')
-      .select('id, name')
-      .in('id', groupIds);
-
-    if (groupsError) {
-      console.error('[AuthContext] groups query error:', groupsError);
+    const groupsRes = await fetch(
+      `${base}/rest/v1/groups?id=in.(${groupIds.join(',')})&select=id,name`,
+      { headers }
+    );
+    const groupsData = await groupsRes.json();
+    if (!Array.isArray(groupsData)) {
+      console.error('[AuthContext] groups fetch error:', groupsData);
       return memberships;
     }
 
-    const groupMap = Object.fromEntries((groups ?? []).map((g) => [g.id, g.name]));
+    const groupMap = Object.fromEntries(
+      (groupsData as { id: string; name: string }[]).map((g) => [g.id, g.name])
+    );
     return memberships.map((m) => ({
       ...m,
       groups: groupMap[m.group_id] ? { id: m.group_id, name: groupMap[m.group_id] } : undefined,
@@ -57,10 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Handles initial session (including restore on refresh).
-    // onAuthStateChange also fires INITIAL_SESSION synchronously, so we skip
-    // it there to avoid two concurrent fetchMemberships calls during restore.
+    console.log('[Auth] state changed — isLoading:', isLoading, 'user:', session?.user?.id ?? null);
+  }, [isLoading, session]);
+
+  useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[Auth] getSession resolved — user:', session?.user?.id ?? null);
       try {
         if (session?.user) {
           const m = await fetchMemberships(session.user.id);
@@ -82,9 +93,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // INITIAL_SESSION is handled by getSession() above — skip here to
-      // prevent a duplicate fetchMemberships call during session restore.
-      if (event === 'INITIAL_SESSION') return;
+      console.log('[Auth] onAuthStateChange event:', event, 'user:', session?.user?.id ?? null);
+
+      if (event === 'INITIAL_SESSION') {
+        // getSession() handles this path — but we must ensure isLoading becomes false
+        // even if getSession's fetchMemberships takes time or fails.
+        setIsLoading(false);
+        return;
+      }
 
       try {
         if (session?.user) {
