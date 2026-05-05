@@ -79,7 +79,7 @@ export function UserSettings() {
         <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Innstillinger</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Profil</h1>
             {username && (
               <p className="text-sm text-slate-500 mt-0.5">Innlogget som <strong>{username}</strong></p>
             )}
@@ -110,7 +110,7 @@ export function UserSettings() {
             <button
               type="submit"
               disabled={isSavingUsername || !newUsername.trim()}
-              className="self-start rounded-full bg-sky-500 text-white text-xs font-semibold px-4 py-2 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+              className="self-start rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-4 py-2 hover:bg-sky-600 disabled:opacity-50 transition-colors"
             >
               {isSavingUsername ? 'Lagrer…' : 'Lagre visningsnavn'}
             </button>
@@ -144,7 +144,7 @@ export function UserSettings() {
             <button
               type="submit"
               disabled={isSavingPassword || !newPassword || !confirmPassword}
-              className="self-start rounded-full bg-sky-500 text-white text-xs font-semibold px-4 py-2 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+              className="self-start rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-4 py-2 hover:bg-sky-600 disabled:opacity-50 transition-colors"
             >
               {isSavingPassword ? 'Lagrer…' : 'Lagre passord'}
             </button>

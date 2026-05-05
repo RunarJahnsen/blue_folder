@@ -272,7 +272,7 @@ export function UserAdmin() {
             <button
               type="submit"
               disabled={isCreating}
-              className="self-start rounded-full bg-sky-500 text-white text-xs font-semibold px-4 py-2 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+              className="self-start rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-4 py-2 hover:bg-sky-600 disabled:opacity-50 transition-colors"
             >
               {isCreating ? 'Oppretter…' : 'Opprett bruker'}
             </button>
@@ -301,7 +301,7 @@ export function UserAdmin() {
                   </div>
                   <button
                     onClick={() => openDialog(m)}
-                    className="flex-shrink-0 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
+                    className="flex-shrink-0 rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
                   >
                     Rediger
                   </button>
@@ -346,7 +346,7 @@ export function UserAdmin() {
                 <button
                   onClick={handleSaveUsername}
                   disabled={isSavingUsername || !editUsername.trim()}
-                  className="rounded-full bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+                  className="rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
                 >
                   {isSavingUsername ? 'Lagrer…' : 'Lagre'}
                 </button>
@@ -363,7 +363,7 @@ export function UserAdmin() {
                 <button
                   onClick={handleToggleRole}
                   disabled={isChangingRole}
-                  className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                  className="rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 disabled:opacity-50 transition-colors"
                 >
                   {isChangingRole
                     ? 'Lagrer…'
@@ -391,7 +391,7 @@ export function UserAdmin() {
                 <button
                   onClick={handleSavePassword}
                   disabled={isSavingPassword || !editPassword.trim()}
-                  className="rounded-full bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
+                  className="rounded-full border-0 bg-sky-500 text-white text-xs font-semibold px-3 py-1 hover:bg-sky-600 disabled:opacity-50 transition-colors"
                 >
                   {isSavingPassword ? 'Lagrer…' : 'Sett passord'}
                 </button>
@@ -405,7 +405,7 @@ export function UserAdmin() {
                 <div>
                   <button
                     onClick={() => setConfirmRemove(true)}
-                    className="rounded-full bg-red-50 text-red-600 text-xs font-semibold px-3 py-1 hover:bg-red-100 transition-colors"
+                    className="rounded-full border-0 bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 transition-colors"
                   >
                     Fjern bruker
                   </button>
@@ -420,14 +420,14 @@ export function UserAdmin() {
                     <button
                       onClick={handleRemove}
                       disabled={isRemoving}
-                      className="rounded-full bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 disabled:opacity-50 transition-colors"
+                      className="rounded-full border-0 bg-red-500 text-white text-xs font-semibold px-3 py-1 hover:bg-red-600 disabled:opacity-50 transition-colors"
                     >
                       {isRemoving ? 'Fjerner…' : 'Bekreft'}
                     </button>
                     <button
                       onClick={() => { setConfirmRemove(false); setRemoveError(''); }}
                       disabled={isRemoving}
-                      className="rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
+                      className="rounded-full border-0 bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 hover:bg-slate-200 transition-colors"
                     >
                       Avbryt
                     </button>

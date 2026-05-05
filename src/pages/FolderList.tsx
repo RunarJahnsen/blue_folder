@@ -147,7 +147,7 @@ export function FolderList() {
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
             <h1 className="text-2xl font-semibold text-slate-900">
-              {username ? `Hei, ${username}` : 'Permoversikt'}
+              {username ? `Hei, ${username}!` : 'Permoversikt'}
             </h1>
             <p className="max-w-2xl text-sm text-slate-600">
               Se alle permer i gruppen og opprett en ny samling.
@@ -163,7 +163,7 @@ export function FolderList() {
               Sanger
             </Button>
             <Button variant="outline" onClick={() => navigate(`/${groupId}/settings`)}>
-              Innstillinger
+              Profil
             </Button>
             <Button onClick={() => navigate(`/${groupId}/folders/new`)}>
               Opprett perm
