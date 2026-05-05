@@ -162,6 +162,9 @@ export function FolderList() {
             <Button variant="outline" onClick={() => navigate(`/${groupId}/songs`)}>
               Sanger
             </Button>
+            <Button variant="outline" onClick={() => navigate(`/${groupId}/settings`)}>
+              Innstillinger
+            </Button>
             <Button onClick={() => navigate(`/${groupId}/folders/new`)}>
               Opprett perm
             </Button>

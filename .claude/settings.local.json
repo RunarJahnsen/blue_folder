@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'Fix: Add separator and spacing between status and mode badges *)",
+      "Bash(git commit -m 'Fix: Add spacing around separator character *)",
+      "Bash(npm run *)",
+      "Bash(npx shadcn-ui@latest add sheet --yes)",
+      "Bash(npx shadcn@latest add sheet --yes)",
+      "Bash(git commit -m 'Fix: Correct Radix UI Dialog attribute selectors in Sheet component *)",
+      "Bash(git commit -m 'Fix: Correct onOpenChange handler signature for Radix UI Dialog *)",
+      "Bash(git commit -m 'Fix: Add explicit display and visibility to SheetContent *)",
+      "Bash(git commit -m 'Refactor: Set Sheet side to bottom for mobile-first modal *)",
+      "Bash(git commit -m 'Fix: Render children in SheetPortal *)",
+      "Bash(npm install *)",
+      "Bash(git commit -m 'Fix: Complete Tailwind v3 migration by removing v4-specific CSS and adding theme colors *)",
+      "Bash(git commit -m 'Fix: Remove problematic @tailwind base and theme colors to get Tailwind v3 working *)",
+      "Bash(git commit -m 'Refactor: Clean up index.css for Tailwind v3 — remove boilerplate *)",
+      "Bash(git commit -m 'Feat: Extend soft deduplication to check song title \\(Slice 4a enhancement\\) *)",
+      "Bash(git commit -m 'Debug: Add console logging to handleCheckUrl for title-match troubleshooting *)",
+      "Bash(git commit -m 'Fix: Change title query from .single\\(\\) to .limit\\(1\\).maybeSingle\\(\\) *)",
+      "Bash(netstat -ano)",
+      "Bash(npx shadcn@latest add select)",
+      "Bash(supabase functions *)",
+      "Bash(npx supabase *)",
+      "Bash(git push *)"
+    ]
+  }
+}

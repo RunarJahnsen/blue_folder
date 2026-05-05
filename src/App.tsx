@@ -8,6 +8,7 @@ import { FolderNew } from './pages/FolderNew';
 import { FolderView } from './pages/FolderView';
 import { SongList } from './pages/SongList';
 import { UserAdmin } from './pages/admin/UserAdmin';
+import { UserSettings } from './pages/UserSettings';
 import { JoinFolder } from './pages/JoinFolder';
 
 function ProtectedRoute({ children, allowGuest = false }: { children: React.ReactNode; allowGuest?: boolean }) {
@@ -68,6 +69,14 @@ function App() {
         element={
           <ProtectedRoute>
             <UserAdmin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/:groupId/settings"
+        element={
+          <ProtectedRoute>
+            <UserSettings />
           </ProtectedRoute>
         }
       />

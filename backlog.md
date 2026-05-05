@@ -355,18 +355,18 @@ Mål: Tilgang til permer og handlinger styres av brukerrolle, ikke session_id.
 
 ---
 
-### Slice 9c — Gjesteinvitasjon
+### Slice 9c — Gjesteinvitasjon ✅
 
 Mål: Admin og permens eier kan invitere gjester til én spesifikk perm via lenke eller kode.
 
 #### Tasks
-- [ ] Legg til `guest_code` (TEXT, nullable, unik) på `folders`-tabellen
-- [ ] Admin/eier kan generere gjestekode for en perm — vises som kopiérbar lenke (`/join/[kode]`)
-- [ ] Bygg join-side (`/join/:guestCode`): validerer kode mot Supabase, gir tilgang til riktig perm
-- [ ] Gjest lagres som session_id i localStorage — eksplisitt markert som gjest for denne permen
-- [ ] Gjest følger permens mode-regler (host_only/suggest/open)
-- [ ] Gjest kan ikke se andre permer i gruppa
-- [ ] Admin/eier kan deaktivere gjestekode (setter `guest_code` til null)
+- [x] Legg til `guest_code` (TEXT, nullable, unik) på `folders`-tabellen
+- [x] Admin/eier kan generere gjestekode for en perm — vises som kopiérbar lenke (`/join/[kode]`)
+- [x] Bygg join-side (`/join/:guestCode`): validerer kode mot Supabase, gir tilgang til riktig perm
+- [x] Gjest lagres som session_id i localStorage — eksplisitt markert som gjest for denne permen
+- [x] Gjest følger permens mode-regler (host_only/suggest/open)
+- [x] Gjest kan ikke se andre permer i gruppa
+- [x] Admin/eier kan deaktivere gjestekode (setter `guest_code` til null)
 
 ---
 
@@ -374,54 +374,94 @@ Mål: Admin og permens eier kan invitere gjester til én spesifikk perm via lenk
 
 Mål: Appen er stabil, ryddig og fungerer godt på mobil. Køen kan sorteres med drag-and-drop, og sanger kan legges til i bulk.
 
-### Tasks
-- [ ] Slettetilgang for sanger — kun oppretteren (matched på added_by) og admin kan slette sanger fra sangoversikten
-- [ ] Rydd opp position-verdier — renumerer alle entries fra 1 etter "Spill som neste"-operasjoner for å unngå svært negative tall (se NOTATER.md)
-- [ ] Drag-and-drop for å sortere køen — erstatter/supplerer "Spill som neste" og "Flytt nederst". Krever renumerering av position-verdier etter drop.
-- [ ] Flervalgsmodus i AddSongModal — i "Favoritter"- og "Alle sanger"-fanene kan man velge flere sanger samtidig og legge dem alle til i køen i én operasjon
-- [ ] Vis innlogget bruker i header — f.eks. "Hei Jon!" eller brukernavn synlig på perm-oversikten
-- [ ] Vis eier-indikasjon på perm-kort i oversikten — tydelig markering av hvilke permer brukeren selv eier
-- [ ] AddSongModal åpner Favoritter-fanen som default, ikke URL-input
-- [ ] TypeScript-opprydding — fjern gjenværende `any`-caster og løse typer
-- [ ] Gjennomgang av mobiloptimalisering — test alle flater på 375px, juster spacing og trykkflater der nødvendig
+### Slice 10a — Enkle UX-forbedringer ✅
+
+- [x] Vis innlogget bruker i header på perm-oversikten
+- [x] Vis eier-indikasjon på perm-kort — "Eier: [brukernavn]" under dato/modus
+- [x] AddSongModal — fane-rekkefølge: Favoritter, Alle sanger, Legg til URL. Søk på `added_by` i begge faner
+- [x] Slettetilgang for sanger — kun oppretteren (`added_by`) og admin kan slette sanger fra sangoversikten
+- [x] Vis `added_by` i sangoversikten per sang-rad
+- [x] Ny sang-knapp i sangoversikten — opprett sang direkte uten å gå via en perm
+- [x] Søkefelt i sangoversikten — filtrerer på tittel, artist og sangtekst
+- [x] Filter på `added_by` i sangoversikten — flervalg, kombineres med søk og tag-filter
+- [x] Placeholder i URL-feltet byttet til nortabs med hjelpetekst
+
+### Slice 10b — Flervalg i AddSongModal ✅
+
+- [x] Flervalgsmodus i AddSongModal — avkrysningsbokser i Favoritter- og Alle sanger-fanene, "Legg til X sanger"-knapp for batch-insert
+- [x] Vis artist i alle seksjoner i FolderView — Live nå, kø, forslag og spilt
+
+### Slice 10c — Drag-and-drop og position-opprydning ✅
+
+- [x] Rydd opp position-verdier — normalisering etter alle reorderinger (drag, "Spill som neste", "Flytt nederst")
+- [x] Drag-and-drop for å sortere køen — @dnd-kit med touch-støtte, GripVertical som drag-handle
+
+### Slice 10d — Teknisk opprydning ✅
+
+- [x] TypeScript-opprydding — fjernet alle `any`-caster, null treff på `tsc --noEmit`
+- [x] Mobiloptimalisering — større trykkflater på heart-knapper og drag-handle, flex-wrap på kontrollrad i spilt-seksjonen
 
 ---
 
-## Slice 11 — Sangstatistikk
-
-Mål: Gruppa kan se statistikk på sangene sine — hvilke sanger som er mest populære, sist spilt og totalt antall ganger spilt.
-
-### Tasks
-- [ ] Beregn antall ganger spilt per sang (tell `FolderSongEntry` med `state = 'played'` per `song_id`)
-- [ ] Vis sist spilt-dato per sang
-- [ ] Vis statistikk i sangoversikten (`/:groupId/songs`) — sortérbar på antall ganger spilt
-- [ ] Vis "mest spilte sanger"-seksjon på perm-oversikten (topp 5)
-
----
-
-## Slice 12 — Utvidet sanginnhenting
-
-Mål: Sangtekst og besifring kan hentes automatisk fra flere kilder.
-
-### Tasks
-- [ ] Sett opp ekstern Node.js-tjeneste (f.eks. Railway eller Fly.io) med Puppeteer for headless browser-scraping
-- [ ] Legg til Genius-støtte via headless browser eller offisiell Genius API
-- [ ] Legg til Ultimate Guitar-støtte via headless browser
-- [ ] Auto-utfyll av tittel og artist fra URL via Open Graph / metatags når sang legges til
-
----
-
-## Slice 13 — Personlige favoritter
+## Slice 11 — Personlige favoritter ✅
 
 Mål: Brukere kan lagre egne favoritter, atskilt fra gruppas felles favoritter.
 
 Forutsetter Slice 9 (brukerlogin).
 
 ### Tasks
-- [ ] Legg til `user_id` på `favorites`-tabellen (eller ny tabell `user_favorites`)
-- [ ] Skille mellom gruppefavoritter og personlige favoritter i UI
-- [ ] Bruker kan lagre/fjerne egne favoritter
-- [ ] Personlige favoritter vises i AddSongModal
+- [x] Ny tabell `user_favorites` med RLS — kun eieren kan lese/skrive egne favoritter
+- [x] "Mine favoritter"-fane i AddSongModal (standardfane) — omdøpt "Favoritter" til "Felles favoritter"
+- [x] Stjerne-ikon i sangoversikten og FolderView (kø, forslag, spilt) for toggle av personlig favoritt
+- [x] Filter for "Mine favoritter" og "Felles favoritter" i sangoversikten
+- [x] Vises kun for innloggede brukere — ikke gjester
+
+---
+
+## Slice 12 — Sangstatistikk ✅
+
+Mål: Gruppa kan se statistikk på sangene sine — hvilke sanger som er mest populære, sist spilt og totalt antall ganger spilt.
+
+### Tasks
+- [x] Beregn antall ganger spilt per sang (client-side aggregering fra folder_song_entries)
+- [x] Vis sist spilt-dato per sang — "Spilt X ganger · Sist: DD.MM.YYYY" i sangoversikten
+- [x] Sortering i sangoversikten — Tittel A–Å/Å–A, Artist A–Å/Å–A, Mest spilt, Sist spilt, Nyest lagt til, Først lagt til
+- [x] Vis "Mest spilte sanger"-seksjon øverst på perm-oversikten (topp 5)
+
+---
+
+## Slice 13 — Utvidet sanginnhenting
+
+### Slice 13a — Auto-utfyll tittel og artist fra URL ✅
+
+- [x] Auto-utfyll tittel og artist fra Nortabs-URL via Open Graph/metatags — trigger på onBlur på URL-feltet
+- [x] Fungerer i både AddSongModal og sangoversikten
+- [x] Viser "Henter info…" under feltet mens henting pågår
+- [x] Fallback: "Fyll inn tittel og artist manuelt" hvis henting feiler
+
+### Slice 13b — Headless browser-scraping (utsatt)
+
+Krever ekstern betalt infrastruktur (Railway/Fly.io med Puppeteer). Utsatt til videre.
+
+- [ ] Genius-støtte via headless browser
+- [ ] Ultimate Guitar-støtte via headless browser
+
+---
+
+## Slice 14 — Brukeradministrasjon
+
+Mål: Admin kan administrere brukere i gruppa, og alle innloggede brukere kan endre egne innstillinger.
+
+### Admin
+- [ ] Endre rolle på eksisterende bruker (member ↔ admin)
+- [ ] Fjerne bruker fra gruppa
+- [ ] Tilbakestille passord for bruker (sette nytt passord via Edge Function med service role key)
+
+### Alle innloggede brukere
+- [ ] Endre eget passord
+- [ ] Endre eget visningsnavn (brukernavn som vises i UI)
+
+---
 
 ---
 

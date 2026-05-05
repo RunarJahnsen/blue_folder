@@ -154,13 +154,17 @@ Implementer aldri uten godkjent plan, med mindre vi eksplisitt sier at du kan g�
 
 ### PROGRESS.md
 
-Ved alle implementeringer (unntatt enkle småfikser): opprett eller oppdater `PROGRESS.md` i prosjektets rotmappe. Oppdater den løpende under implementeringen — ikke bare på slutten.
+Ved alle analyser og implementeringer (unntatt enkle småfikser): opprett eller oppdater `PROGRESS.md` i prosjektets rotmappe.
+
+**Ved analyse:** Skriv analysen inn i PROGRESS.md før du avslutter med `WAITING FOR APPROVAL`. Da er analysen alltid dokumentert selv om sesjonen avsluttes.
+
+**Ved implementering:** Oppdater PROGRESS.md løpende — ikke bare på slutten.
 
 Filen skal inneholde:
 - **Oppgave**: kort beskrivelse av hva som implementeres
+- **Analyse**: plan og avveininger fra analysefasen
 - **Gjort**: hvilke filer som er endret og hva som er fullført
 - **Gjenstår**: hva som ikke er gjort ennå
-- **Avveininger**: eventuelle valg tatt underveis
 
 Dette gjør det mulig å fortsette arbeidet hvis implementeringen avbrytes midt i.
 
