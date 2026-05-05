@@ -179,7 +179,7 @@ export function SongList() {
     setIsSaving(true);
     const headers = await pgHeaders();
     const base = BASE();
-    const updatedBy = memberships.find(m => m.group_id === groupId)?.username ?? null;
+    const updatedBy = username ?? null;
 
     const updateRes = await fetch(`${base}/rest/v1/songs?id=eq.${editingSong.id}`, {
       method: 'PATCH',
