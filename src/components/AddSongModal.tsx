@@ -89,6 +89,8 @@ export function AddSongModal({
   const [warningSongId, setWarningSongId] = useState<string | null>(null);
   const [manualContent, setManualContent] = useState('');
   const [isSavingManual, setIsSavingManual] = useState(false);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [autoFillHint, setAutoFillHint] = useState('');
 
   useEffect(() => {
     if (activeTab !== 'mine' || !groupId || !user) return;
@@ -388,7 +390,39 @@ export function AddSongModal({
     setLyrics('');
     setExistingSong(null);
     setError('');
+    setAutoFillHint('');
+    setIsAutoFilling(false);
     onClose();
+  };
+
+  const handleUrlBlur = async () => {
+    if (!url.trim() || isLoading) return;
+    setIsAutoFilling(true);
+    setAutoFillHint('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const result = await supabase.functions.invoke('fetch-song-content', {
+        body: { url: url.trim() },
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const meta = result.data as { title?: string | null; artist?: string | null } | null;
+      if (meta?.title) {
+        if (!title.trim()) setTitle(meta.title);
+      }
+      if (meta?.artist) {
+        if (!artist.trim()) setArtist(meta.artist);
+      }
+      if (!meta?.title && !meta?.artist) {
+        setAutoFillHint('Fyll inn tittel og artist manuelt');
+      }
+    } catch {
+      setAutoFillHint('Fyll inn tittel og artist manuelt');
+    }
+    setIsAutoFilling(false);
   };
 
   const filteredMineSongs = (() => {
@@ -569,10 +603,15 @@ export function AddSongModal({
                       type="text"
                       placeholder="https://www.nortabs.net/..."
                       value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      disabled={isLoading}
+                      onChange={(e) => { setUrl(e.target.value); setAutoFillHint(''); }}
+                      onBlur={handleUrlBlur}
+                      disabled={isLoading || isAutoFilling}
                     />
-                    <p className="text-xs text-slate-400 mt-1">Sanger fra Nortabs hentes automatisk med tekst.</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {isAutoFilling
+                        ? 'Henter info…'
+                        : autoFillHint || 'Sanger fra Nortabs hentes automatisk med tekst.'}
+                    </p>
                   </div>
                 )}
                 <div>

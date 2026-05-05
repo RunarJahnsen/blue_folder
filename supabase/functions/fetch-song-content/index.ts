@@ -5,6 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface SongMeta {
+  title: string | null;
+  artist: string | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -14,12 +19,22 @@ Deno.serve(async (req) => {
     const { url, song_id } = await req.json();
     console.log('Received:', { url, song_id });
 
-    if (!url || !song_id) {
-      return new Response(JSON.stringify({ content: null }), {
+    if (!url) {
+      return new Response(JSON.stringify({ content: null, title: null, artist: null }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Metadata-only mode — no song_id, no DB write
+    if (!song_id) {
+      const meta = await fetchMeta(url);
+      console.log('Meta result:', meta);
+      return new Response(JSON.stringify(meta), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Content mode — existing behaviour
     const content = await fetchContent(url);
     console.log('Content result:', content ? 'found' : 'null');
 
@@ -35,11 +50,157 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch {
-    return new Response(JSON.stringify({ content: null }), {
+    return new Response(JSON.stringify({ content: null, title: null, artist: null }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
+
+// ─── Metadata extraction ────────────────────────────────────────────────────
+
+async function fetchMeta(url: string): Promise<SongMeta> {
+  try {
+    const hostname = new URL(url).hostname.replace('www.', '');
+    if (hostname === 'nortabs.net' || hostname === 'nortabs.no') return await fetchNortabsMeta(url);
+    if (hostname === 'ultimate-guitar.com' || hostname.endsWith('.ultimate-guitar.com')) return await fetchUgMeta(url);
+    if (hostname === 'genius.com') return await fetchGeniusMeta(url);
+    return await fetchGenericMeta(url);
+  } catch {
+    return { title: null, artist: null };
+  }
+}
+
+async function fetchNortabsMeta(url: string): Promise<SongMeta> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+    });
+    if (!res.ok) return { title: null, artist: null };
+    const html = await res.text();
+
+    const ogMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)
+      ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:title"/i);
+    if (ogMatch) {
+      const title = decodeHtmlEntities(ogMatch[1]).replace(/\s*[-–|]\s*Nortabs.*$/i, '').trim();
+      return { title: title || null, artist: null };
+    }
+
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (titleMatch) {
+      const title = decodeHtmlEntities(titleMatch[1]).replace(/\s*[-–|]\s*Nortabs.*$/i, '').trim();
+      return { title: title || null, artist: null };
+    }
+
+    return { title: null, artist: null };
+  } catch {
+    return { title: null, artist: null };
+  }
+}
+
+async function fetchUgMeta(url: string): Promise<SongMeta> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
+    if (!res.ok) return { title: null, artist: null };
+    const html = await res.text();
+
+    const storeMatch = html.match(/class="js-store"[^>]*data-content="([^"]+)"/);
+    if (storeMatch) {
+      try {
+        const decoded = storeMatch[1]
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&#039;/g, "'");
+        const data = JSON.parse(decoded);
+        const tab = data?.store?.page?.data?.tab;
+        if (tab) {
+          return {
+            title: tab.song_name ?? null,
+            artist: tab.artist_name ?? null,
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    return { title: null, artist: null };
+  } catch {
+    return { title: null, artist: null };
+  }
+}
+
+async function fetchGeniusMeta(url: string): Promise<SongMeta> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+    });
+    if (!res.ok) return { title: null, artist: null };
+    const html = await res.text();
+
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+    if (nextDataMatch) {
+      try {
+        const data = JSON.parse(nextDataMatch[1]);
+        const song = data?.props?.pageProps?.songPage?.song
+          ?? data?.props?.pageProps?.song;
+        if (song) {
+          return {
+            title: song.title ?? null,
+            artist: song.primary_artist?.name ?? null,
+          };
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    return { title: null, artist: null };
+  } catch {
+    return { title: null, artist: null };
+  }
+}
+
+async function fetchGenericMeta(url: string): Promise<SongMeta> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+    });
+    if (!res.ok) return { title: null, artist: null };
+    const html = await res.text();
+
+    const ogMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)
+      ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:title"/i);
+    if (ogMatch) {
+      return { title: decodeHtmlEntities(ogMatch[1]).trim() || null, artist: null };
+    }
+
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (titleMatch) {
+      return { title: decodeHtmlEntities(titleMatch[1]).trim() || null, artist: null };
+    }
+
+    return { title: null, artist: null };
+  } catch {
+    return { title: null, artist: null };
+  }
+}
+
+// ─── Content extraction (existing) ──────────────────────────────────────────
 
 async function fetchContent(url: string): Promise<string | null> {
   try {
@@ -68,11 +229,9 @@ async function fetchNortabs(url: string): Promise<string | null> {
     const html = await res.text();
     console.log('Nortabs HTML snippet:', html.substring(0, 500));
 
-    // Nortabs wraps tab content in <pre> tags
     const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
     if (preMatch) return decodeHtmlEntities(preMatch[1].trim());
 
-    // Fallback: div with class tab/content/lyrics
     const divMatch = html.match(/<div[^>]*class="[^"]*(?:tab|chord|lyrics|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
     if (divMatch) return stripHtml(divMatch[1]).trim() || null;
 
@@ -95,7 +254,6 @@ async function fetchUltimateGuitar(url: string): Promise<string | null> {
     if (!res.ok) return null;
     const html = await res.text();
 
-    // UG embeds tab data in a <div class="js-store" data-content="...JSON...">
     const storeMatch = html.match(/class="js-store"[^>]*data-content="([^"]+)"/);
     if (storeMatch) {
       try {
@@ -111,7 +269,6 @@ async function fetchUltimateGuitar(url: string): Promise<string | null> {
       }
     }
 
-    // Older UG format: window.UGAPP.store.page
     const ugappMatch = html.match(/window\.UGAPP\.store\.page\s*=\s*(\{[\s\S]*?\});\s*\n/);
     if (ugappMatch) {
       try {
@@ -142,7 +299,6 @@ async function fetchGenius(url: string): Promise<string | null> {
     const html = await res.text();
     console.log('Genius HTML snippet:', html.substring(0, 1000));
 
-    // Strategy 1: __NEXT_DATA__ JSON blob
     const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
     if (nextDataMatch) {
       try {
@@ -156,7 +312,6 @@ async function fetchGenius(url: string): Promise<string | null> {
       }
     }
 
-    // Strategy 2: data-lyrics-container="true" divs
     const lyricsMatches = [...html.matchAll(/data-lyrics-container="true"[^>]*>([\s\S]*?)<\/div>/g)];
     if (lyricsMatches.length > 0) {
       const combined = lyricsMatches.map((m) => stripHtml(m[1])).join('\n\n');
@@ -183,7 +338,6 @@ function extractGeniusChildren(children: unknown[]): string {
     .join('');
 }
 
-// Strip UG markup tags like [ch]Em[/ch] and [tab]...[/tab]
 function cleanUgContent(content: string): string {
   return content
     .replace(/\[ch\](.*?)\[\/ch\]/g, '$1')
