@@ -466,7 +466,7 @@ export function SongList() {
             <option value="plays">Mest spilt</option>
             <option value="recent">Sist spilt</option>
             <option value="newest">Nyest lagt til</option>
-            <option value="oldest">Eldst lagt til</option>
+            <option value="oldest">Først lagt til</option>
           </select>
         </div>
 
