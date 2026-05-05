@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, GripVertical, Heart, Plus } from 'lucide-react';
+import { ArrowLeft, GripVertical, Heart, Plus, Star } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { supabase } from '@/lib/supabase';
-import type { Favorite, Folder, FolderSongEntry, Song } from '@/lib/types';
+import type { Favorite, Folder, FolderSongEntry, Song, UserFavorite } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -43,6 +43,9 @@ interface SortableQueueItemProps {
   showQueueControls: boolean;
   isFavorite: boolean;
   onToggleFavorite: (songId: string) => void;
+  showUserFavorite: boolean;
+  isUserFavorite: boolean;
+  onToggleUserFavorite: (songId: string) => void;
   onSongClick: (song: Song) => void;
   onMoveToBottom: (entry: SongWithEntry) => void;
   onPlayAsNext: (entry: SongWithEntry) => void;
@@ -51,9 +54,9 @@ interface SortableQueueItemProps {
 }
 
 function SortableQueueItem({
-  entry, showQueueControls, isFavorite,
-  onToggleFavorite, onSongClick,
-  onMoveToBottom, onPlayAsNext, onPlayNow, onRemove,
+  entry, showQueueControls, isFavorite, onToggleFavorite,
+  showUserFavorite, isUserFavorite, onToggleUserFavorite,
+  onSongClick, onMoveToBottom, onPlayAsNext, onPlayNow, onRemove,
 }: SortableQueueItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
   const style: React.CSSProperties = {
@@ -106,13 +109,24 @@ function SortableQueueItem({
                 {titleEl}
                 {song?.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
               </div>
-              <button
-                type="button"
-                onClick={() => song?.id && onToggleFavorite(song.id)}
-                className="flex-shrink-0 border-0 bg-transparent p-2 -mr-2 transition-colors"
-              >
-                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
-              </button>
+              <div className="flex-shrink-0 flex items-center -mr-2">
+                <button
+                  type="button"
+                  onClick={() => song?.id && onToggleFavorite(song.id)}
+                  className="border-0 bg-transparent p-2 transition-colors"
+                >
+                  <Heart className={`h-4 w-4 ${isFavorite ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
+                </button>
+                {showUserFavorite && (
+                  <button
+                    type="button"
+                    onClick={() => song?.id && onToggleUserFavorite(song.id)}
+                    className="border-0 bg-transparent p-2 transition-colors"
+                  >
+                    <Star className={`h-4 w-4 ${isUserFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}`} />
+                  </button>
+                )}
+              </div>
             </div>
             {showQueueControls && (
               <div className="flex gap-2 justify-end flex-wrap">
@@ -160,6 +174,7 @@ export function FolderView() {
   const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [userFavorites, setUserFavorites] = useState<UserFavorite[]>([]);
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
@@ -296,6 +311,19 @@ export function FolderView() {
     };
   }, [folderId]);
 
+  useEffect(() => {
+    if (!user || !groupId) return;
+    (async () => {
+      const headers = await pgHeaders();
+      const res = await fetch(
+        `${BASE()}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id`,
+        { headers }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) setUserFavorites(data as UserFavorite[]);
+    })();
+  }, [user, groupId]);
+
   const currentEntry = useMemo(
     () => entries.find((e) => e.state === 'current' && e.songs),
     [entries]
@@ -325,6 +353,37 @@ export function FolderView() {
     () => new Set(favorites.map((f) => f.song_id)),
     [favorites]
   );
+
+  const userFavoriteSongIds = useMemo(
+    () => new Set(userFavorites.map((f) => f.song_id)),
+    [userFavorites]
+  );
+
+  const handleToggleUserFavorite = async (songId: string) => {
+    if (!groupId || !user) return;
+    const headers = await pgHeaders();
+    const base = BASE();
+    if (userFavoriteSongIds.has(songId)) {
+      const existing = userFavorites.find((f) => f.song_id === songId);
+      if (!existing) return;
+      setUserFavorites((prev) => prev.filter((f) => f.song_id !== songId));
+      await fetch(`${base}/rest/v1/user_favorites?id=eq.${existing.id}`, { method: 'DELETE', headers });
+    } else {
+      setUserFavorites((prev) => [...prev, { id: '', user_id: user.id, song_id: songId, group_id: groupId, created_at: '' }]);
+      const res = await fetch(`${base}/rest/v1/user_favorites`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ user_id: user.id, song_id: songId, group_id: groupId }),
+      });
+      if (res.ok) {
+        const raw = await res.json();
+        const data = Array.isArray(raw) ? raw[0] : raw;
+        if (data) setUserFavorites((prev) => prev.map((f) => f.song_id === songId && f.id === '' ? data as UserFavorite : f));
+      } else {
+        setUserFavorites((prev) => prev.filter((f) => f.song_id !== songId));
+      }
+    }
+  };
 
   const isHost = folder?.owner_user_id === user?.id || isAdmin(groupId!);
   const showQueueControls = folder?.mode === 'open' || isHost;
@@ -924,6 +983,9 @@ export function FolderView() {
                       showQueueControls={showQueueControls}
                       isFavorite={favoriteSongIds.has((entry.songs as Song | undefined)?.id ?? '')}
                       onToggleFavorite={handleToggleFavorite}
+                      showUserFavorite={!!user}
+                      isUserFavorite={userFavoriteSongIds.has((entry.songs as Song | undefined)?.id ?? '')}
+                      onToggleUserFavorite={handleToggleUserFavorite}
                       onSongClick={setSelectedSong}
                       onMoveToBottom={handleMoveToBottom}
                       onPlayAsNext={handlePlayAsNext}
@@ -967,7 +1029,18 @@ export function FolderView() {
                             </div>
                           )}
                         </div>
-                        <div>{renderSongLink(entry)}</div>
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0">{renderSongLink(entry)}</div>
+                          {user && (
+                            <button
+                              type="button"
+                              onClick={() => entry.songs?.id && handleToggleUserFavorite(entry.songs.id)}
+                              className="flex-shrink-0 border-0 bg-transparent p-1.5 transition-colors"
+                            >
+                              <Star className={`h-4 w-4 ${userFavoriteSongIds.has(entry.songs?.id ?? '') ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}`} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -998,15 +1071,24 @@ export function FolderView() {
                           {idx + 1}.
                         </span>
                         <div className="flex-1 min-w-0">{renderSongLink(entry)}</div>
-                        <button
-                          type="button"
-                          onClick={() => entry.songs?.id && handleToggleFavorite(entry.songs.id)}
-                          className="flex-shrink-0 border-0 bg-transparent p-2 -mr-2 transition-colors"
-                        >
-                          <Heart
-                            className={`h-4 w-4 ${favoriteSongIds.has(entry.songs?.id ?? '') ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`}
-                          />
-                        </button>
+                        <div className="flex-shrink-0 flex items-center -mr-2">
+                          <button
+                            type="button"
+                            onClick={() => entry.songs?.id && handleToggleFavorite(entry.songs.id)}
+                            className="border-0 bg-transparent p-2 transition-colors"
+                          >
+                            <Heart className={`h-4 w-4 ${favoriteSongIds.has(entry.songs?.id ?? '') ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
+                          </button>
+                          {user && (
+                            <button
+                              type="button"
+                              onClick={() => entry.songs?.id && handleToggleUserFavorite(entry.songs.id)}
+                              className="border-0 bg-transparent p-2 transition-colors"
+                            >
+                              <Star className={`h-4 w-4 ${userFavoriteSongIds.has(entry.songs?.id ?? '') ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}`} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {showQueueControls && (
                         <div className="flex gap-2 justify-end flex-wrap">

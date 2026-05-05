@@ -507,7 +507,7 @@ export function AddSongModal({
               variant={activeTab === 'mine' ? 'default' : 'outline'}
               onClick={() => { setActiveTab('mine'); setError(''); }}
             >
-              Mine
+              Mine favoritter
             </Button>
           )}
           <Button

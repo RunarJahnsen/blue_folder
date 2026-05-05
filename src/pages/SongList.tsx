@@ -94,6 +94,29 @@ export function SongList() {
     [userFavorites]
   );
 
+  const handleToggleFavorite = async (songId: string) => {
+    if (!groupId) return;
+    const headers = await pgHeaders();
+    const base = BASE();
+    if (favoriteSongIds.has(songId)) {
+      const existing = favorites.find((f) => f.song_id === songId);
+      if (!existing) return;
+      setFavorites((prev) => prev.filter((f) => f.song_id !== songId));
+      await fetch(`${base}/rest/v1/favorites?id=eq.${existing.id}`, { method: 'DELETE', headers });
+    } else {
+      const res = await fetch(`${base}/rest/v1/favorites`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ group_id: groupId, song_id: songId }),
+      });
+      if (res.ok) {
+        const raw = await res.json();
+        const data = Array.isArray(raw) ? raw[0] : raw;
+        if (data) setFavorites((prev) => [...prev, data as Favorite]);
+      }
+    }
+  };
+
   const handleToggleUserFavorite = async (songId: string) => {
     if (!groupId || !user) return;
     const headers = await pgHeaders();
@@ -488,9 +511,14 @@ export function SongList() {
                 ) : (
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-2 min-w-0">
-                      <Heart
-                        className={`h-4 w-4 flex-shrink-0 mt-0.5 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300'}`}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavorite(song.id)}
+                        className="flex-shrink-0 border-0 bg-transparent p-0 mt-0.5 transition-colors"
+                        aria-label={favoriteSongIds.has(song.id) ? 'Fjern fra gruppefavoritter' : 'Legg til gruppefavoritter'}
+                      >
+                        <Heart className={`h-4 w-4 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
+                      </button>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">
                           {song.artist ? `${song.artist} — ${song.title}` : song.title}
