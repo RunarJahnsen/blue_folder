@@ -64,6 +64,8 @@ export function SongList() {
   const [newLyrics, setNewLyrics] = useState('');
   const [newError, setNewError] = useState('');
   const [isCreatingSong, setIsCreatingSong] = useState(false);
+  const [isNewAutoFilling, setIsNewAutoFilling] = useState(false);
+  const [newAutoFillHint, setNewAutoFillHint] = useState('');
 
   useEffect(() => {
     if (!groupId) return;
@@ -343,6 +345,30 @@ export function SongList() {
     setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics('');
     setIsAddingSong(false);
     setIsCreatingSong(false);
+  };
+
+  const handleNewUrlBlur = async () => {
+    if (!newUrl.trim() || isCreatingSong) return;
+    setIsNewAutoFilling(true);
+    setNewAutoFillHint('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const result = await supabase.functions.invoke('fetch-song-content', {
+        body: { url: newUrl.trim() },
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const meta = result.data as { title?: string | null; artist?: string | null } | null;
+      if (meta?.title && !newTitle.trim()) setNewTitle(meta.title);
+      if (meta?.artist && !newArtist.trim()) setNewArtist(meta.artist);
+      if (!meta?.title && !meta?.artist) setNewAutoFillHint('Fyll inn tittel og artist manuelt');
+    } catch {
+      setNewAutoFillHint('Fyll inn tittel og artist manuelt');
+    }
+    setIsNewAutoFilling(false);
   };
 
   const handleSaveSong = async () => {
@@ -690,7 +716,7 @@ export function SongList() {
         )}
       </div>
 
-      <Sheet open={isAddingSong} onOpenChange={(open) => { if (!open) { setIsAddingSong(false); setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics(''); setNewError(''); } }}>
+      <Sheet open={isAddingSong} onOpenChange={(open) => { if (!open) { setIsAddingSong(false); setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics(''); setNewError(''); setNewAutoFillHint(''); setIsNewAutoFilling(false); } }}>
         <SheetContent side="bottom" className="max-h-[85vh] data-[state=open]:flex data-[state=open]:flex-col">
           <SheetHeader className="flex-shrink-0">
             <SheetTitle>Ny sang</SheetTitle>
@@ -703,8 +729,16 @@ export function SongList() {
             {newInputMode === 'url' && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-slate-700">URL</label>
-                <Input placeholder="https://www.nortabs.net/..." value={newUrl} onChange={(e) => setNewUrl(e.target.value)} disabled={isCreatingSong} />
-                <p className="text-xs text-slate-400">Sanger fra Nortabs hentes automatisk med tekst.</p>
+                <Input
+                  placeholder="https://www.nortabs.net/..."
+                  value={newUrl}
+                  onChange={(e) => { setNewUrl(e.target.value); setNewAutoFillHint(''); }}
+                  onBlur={handleNewUrlBlur}
+                  disabled={isCreatingSong || isNewAutoFilling}
+                />
+                <p className="text-xs text-slate-400">
+                  {isNewAutoFilling ? 'Henter info…' : newAutoFillHint || 'Sanger fra Nortabs hentes automatisk med tekst.'}
+                </p>
               </div>
             )}
             <div className="flex flex-col gap-1.5">

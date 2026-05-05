@@ -62,8 +62,6 @@ async function fetchMeta(url: string): Promise<SongMeta> {
   try {
     const hostname = new URL(url).hostname.replace('www.', '');
     if (hostname === 'nortabs.net' || hostname === 'nortabs.no') return await fetchNortabsMeta(url);
-    if (hostname === 'ultimate-guitar.com' || hostname.endsWith('.ultimate-guitar.com')) return await fetchUgMeta(url);
-    if (hostname === 'genius.com') return await fetchGeniusMeta(url);
     return await fetchGenericMeta(url);
   } catch {
     return { title: null, artist: null };
@@ -81,92 +79,24 @@ async function fetchNortabsMeta(url: string): Promise<SongMeta> {
     if (!res.ok) return { title: null, artist: null };
     const html = await res.text();
 
-    const ogMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)
-      ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:title"/i);
-    if (ogMatch) {
-      const title = decodeHtmlEntities(ogMatch[1]).replace(/\s*[-–|]\s*Nortabs.*$/i, '').trim();
-      return { title: title || null, artist: null };
-    }
+    const rawTitle = (() => {
+      const ogMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)
+        ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:title"/i);
+      if (ogMatch) return decodeHtmlEntities(ogMatch[1]);
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch) return decodeHtmlEntities(titleMatch[1]);
+      return null;
+    })();
 
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (titleMatch) {
-      const title = decodeHtmlEntities(titleMatch[1]).replace(/\s*[-–|]\s*Nortabs.*$/i, '').trim();
-      return { title: title || null, artist: null };
-    }
+    if (!rawTitle) return { title: null, artist: null };
 
-    return { title: null, artist: null };
-  } catch {
-    return { title: null, artist: null };
-  }
-}
-
-async function fetchUgMeta(url: string): Promise<SongMeta> {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-      },
-    });
-    if (!res.ok) return { title: null, artist: null };
-    const html = await res.text();
-
-    const storeMatch = html.match(/class="js-store"[^>]*data-content="([^"]+)"/);
-    if (storeMatch) {
-      try {
-        const decoded = storeMatch[1]
-          .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&')
-          .replace(/&#039;/g, "'");
-        const data = JSON.parse(decoded);
-        const tab = data?.store?.page?.data?.tab;
-        if (tab) {
-          return {
-            title: tab.song_name ?? null,
-            artist: tab.artist_name ?? null,
-          };
-        }
-      } catch {
-        // fall through
-      }
-    }
-
-    return { title: null, artist: null };
-  } catch {
-    return { title: null, artist: null };
-  }
-}
-
-async function fetchGeniusMeta(url: string): Promise<SongMeta> {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-    });
-    if (!res.ok) return { title: null, artist: null };
-    const html = await res.text();
-
-    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-    if (nextDataMatch) {
-      try {
-        const data = JSON.parse(nextDataMatch[1]);
-        const song = data?.props?.pageProps?.songPage?.song
-          ?? data?.props?.pageProps?.song;
-        if (song) {
-          return {
-            title: song.title ?? null,
-            artist: song.primary_artist?.name ?? null,
-          };
-        }
-      } catch {
-        // fall through
-      }
-    }
-
-    return { title: null, artist: null };
+    // Format: "Tittel - Artist - Nortabs" or "Tittel - Nortabs"
+    const parts = rawTitle.split(' - ').map((p) => p.trim()).filter(Boolean);
+    const cleaned = parts.filter((p) => !/^nortabs/i.test(p));
+    return {
+      title: cleaned[0] ?? null,
+      artist: cleaned.length > 1 ? cleaned[1] : null,
+    };
   } catch {
     return { title: null, artist: null };
   }
