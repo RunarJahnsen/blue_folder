@@ -263,7 +263,7 @@ export function FolderView() {
           setEntries((prev) =>
             prev.map((e) =>
               e.id === updated.id
-                ? { ...e, state: updated.state, position: updated.position, played_at: updated.played_at }
+                ? { ...e, state: updated.state, played_at: updated.played_at }
                 : e
             )
           );
