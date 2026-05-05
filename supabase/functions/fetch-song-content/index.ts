@@ -59,13 +59,8 @@ Deno.serve(async (req) => {
 // ─── Metadata extraction ────────────────────────────────────────────────────
 
 async function fetchMeta(url: string): Promise<SongMeta> {
-  try {
-    const hostname = new URL(url).hostname.replace('www.', '');
-    if (hostname === 'nortabs.net' || hostname === 'nortabs.no') return await fetchNortabsMeta(url);
-    return await fetchGenericMeta(url);
-  } catch {
-    return { title: null, artist: null };
-  }
+  if (url.includes('nortabs.net') || url.includes('nortabs.no')) return await fetchNortabsMeta(url);
+  return { title: null, artist: null };
 }
 
 async function fetchNortabsMeta(url: string): Promise<SongMeta> {
@@ -90,41 +85,13 @@ async function fetchNortabsMeta(url: string): Promise<SongMeta> {
 
     if (!rawTitle) return { title: null, artist: null };
 
-    // Format: "Tittel - Artist - Nortabs" or "Tittel - Nortabs"
+    // Format: "Artist - Sangtittel - Nortabs" or "Sangtittel - Nortabs"
     const parts = rawTitle.split(' - ').map((p) => p.trim()).filter(Boolean);
     const cleaned = parts.filter((p) => !/^nortabs/i.test(p));
     return {
-      title: cleaned[0] ?? null,
-      artist: cleaned.length > 1 ? cleaned[1] : null,
+      artist: cleaned.length > 1 ? cleaned[0] : null,
+      title: cleaned.length > 1 ? cleaned[1] : (cleaned[0] ?? null),
     };
-  } catch {
-    return { title: null, artist: null };
-  }
-}
-
-async function fetchGenericMeta(url: string): Promise<SongMeta> {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-    });
-    if (!res.ok) return { title: null, artist: null };
-    const html = await res.text();
-
-    const ogMatch = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)
-      ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:title"/i);
-    if (ogMatch) {
-      return { title: decodeHtmlEntities(ogMatch[1]).trim() || null, artist: null };
-    }
-
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (titleMatch) {
-      return { title: decodeHtmlEntities(titleMatch[1]).trim() || null, artist: null };
-    }
-
-    return { title: null, artist: null };
   } catch {
     return { title: null, artist: null };
   }
