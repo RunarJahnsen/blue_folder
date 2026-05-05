@@ -216,7 +216,7 @@ export function FolderView() {
   const { isGuest, guestFolderId } = useGuestSession();
   const isCurrentGuest = isGuest && guestFolderId === folderId;
   const isHost = folder?.owner_user_id === user?.id || isAdmin(groupId!);
-  const showHostControls = !isCurrentGuest && (folder?.mode === 'open' || isHost);
+  const showQueueControls = folder?.mode === 'open' || isHost;
 
   const handleToggleFavorite = async (songId: string) => {
     if (!groupId) return;
@@ -595,7 +595,7 @@ export function FolderView() {
               <h1 className="text-3xl font-semibold text-slate-900">{folder.title}</h1>
               <p className="text-sm text-slate-600">{folder.date}</p>
             </div>
-            {!showHostControls && (
+            {!isHost && (
               <div className="flex gap-2 flex-wrap items-center">
                 <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(folder.status)}`}>
                   {folder.status.charAt(0).toUpperCase() + folder.status.slice(1)}
@@ -607,7 +607,7 @@ export function FolderView() {
               </div>
             )}
           </div>
-          {showHostControls && (
+          {isHost && (
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap justify-end gap-3">
                 <select
@@ -663,38 +663,36 @@ export function FolderView() {
                   </Button>
                 )}
               </div>
-              {isHost && (
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gjesteinvitasjon</p>
-                  {folder.guest_code ? (
-                    <>
-                      <div className="flex gap-2 items-center">
-                        <input
-                          type="text"
-                          readOnly
-                          value={`${window.location.origin}/join/${folder.guest_code}`}
-                          className="flex-1 rounded-xl bg-slate-50 border-0 px-3 py-2 text-xs text-slate-600 shadow-sm"
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join/${folder.guest_code!}`)}
-                        >
-                          Kopier
-                        </Button>
-                      </div>
-                      <Button size="sm" variant="outline" onClick={handleDeactivateGuestCode} disabled={isSavingGuestCode}>
-                        {isSavingGuestCode ? 'Deaktiverer…' : 'Deaktiver gjestekode'}
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gjesteinvitasjon</p>
+                {folder.guest_code ? (
+                  <>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/join/${folder.guest_code}`}
+                        className="flex-1 rounded-xl bg-slate-50 border-0 px-3 py-2 text-xs text-slate-600 shadow-sm"
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/join/${folder.guest_code!}`)}
+                      >
+                        Kopier
                       </Button>
-                    </>
-                  ) : (
-                    <Button size="sm" onClick={handleGenerateGuestCode} disabled={isSavingGuestCode}>
-                      {isSavingGuestCode ? 'Genererer…' : 'Generer gjestekode'}
+                    </div>
+                    <Button size="sm" variant="outline" onClick={handleDeactivateGuestCode} disabled={isSavingGuestCode}>
+                      {isSavingGuestCode ? 'Deaktiverer…' : 'Deaktiver gjestekode'}
                     </Button>
-                  )}
-                </div>
-              )}
+                  </>
+                ) : (
+                  <Button size="sm" onClick={handleGenerateGuestCode} disabled={isSavingGuestCode}>
+                    {isSavingGuestCode ? 'Genererer…' : 'Generer gjestekode'}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -703,7 +701,7 @@ export function FolderView() {
         <div className="rounded-2xl bg-sky-50 p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Live nå</p>
-            {showHostControls && (
+            {showQueueControls && (
               <Button
                 size="sm"
                 onClick={handlePlayNext}
@@ -760,7 +758,7 @@ export function FolderView() {
                           />
                         </button>
                       </div>
-                      {showHostControls && (
+                      {showQueueControls && (
                         <div className="flex gap-2 justify-end flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => handleMoveToBottom(entry)}>
                             Flytt nederst
@@ -792,8 +790,8 @@ export function FolderView() {
           )}
         </div>
 
-        {/* Forslag (kun synlig hvis mode === 'suggest') */}
-        {folder.mode === 'suggest' && (
+        {/* Forslag — vises uansett mode hvis det finnes forslag */}
+        {suggestedEntries.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Forslag</h2>
@@ -807,7 +805,7 @@ export function FolderView() {
                       <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between gap-4">
                           {renderBadge('Forslag', 'bg-slate-200 text-slate-800')}
-                          {showHostControls && (
+                          {isHost && (
                             <div className="flex gap-2">
                               <Button size="sm" onClick={() => handleApproveSuggestion(entry)}>
                                 Godkjenn
@@ -859,7 +857,7 @@ export function FolderView() {
                           />
                         </button>
                       </div>
-                      {showHostControls && (
+                      {showQueueControls && (
                         <div className="flex gap-2 justify-end">
                           <Button size="sm" variant="outline" onClick={() => handleMoveToBottom(entry)}>
                             Flytt nederst
