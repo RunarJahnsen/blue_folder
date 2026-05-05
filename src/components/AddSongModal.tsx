@@ -653,6 +653,7 @@ export function AddSongModal({
             ) : filteredFavorites.length === 0 ? (
               <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
+              <>
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {filteredFavorites.map((fav) => (
                   <div key={fav.id} className="flex items-center gap-3 py-3">
@@ -680,6 +681,7 @@ export function AddSongModal({
                   {isLoading ? 'Legger til…' : `Legg til ${selectedSongIds.size} ${selectedSongIds.size === 1 ? 'sang' : 'sanger'}`}
                 </Button>
               )}
+              </>
             )}
             {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
@@ -726,6 +728,7 @@ export function AddSongModal({
             ) : filteredAllSongs.length === 0 ? (
               <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
+              <>
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {filteredAllSongs.map((song) => (
                   <div key={song.id} className="flex items-center gap-3 py-3">
@@ -764,6 +767,7 @@ export function AddSongModal({
                   {isLoading ? 'Legger til…' : `Legg til ${selectedSongIds.size} ${selectedSongIds.size === 1 ? 'sang' : 'sanger'}`}
                 </Button>
               )}
+              </>
             )}
             {error && <div className="text-sm text-red-600">{error}</div>}
           </div>
