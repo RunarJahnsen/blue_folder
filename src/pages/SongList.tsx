@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, X } from 'lucide-react';
+import { ArrowLeft, Heart, Plus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Favorite, SongWithTags, Tag, SongTagEntry } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,13 +49,22 @@ export function SongList() {
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
 
+  const [isAddingSong, setIsAddingSong] = useState(false);
+  const [newInputMode, setNewInputMode] = useState<'url' | 'lyrics'>('url');
+  const [newTitle, setNewTitle] = useState('');
+  const [newArtist, setNewArtist] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [newLyrics, setNewLyrics] = useState('');
+  const [newError, setNewError] = useState('');
+  const [isCreatingSong, setIsCreatingSong] = useState(false);
+
   useEffect(() => {
     if (!groupId) return;
     (async () => {
       const headers = await pgHeaders();
       const base = BASE();
       const [songsRes, favsRes, tagsRes] = await Promise.all([
-        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
+        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
         fetch(`${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
         fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
       ]);
@@ -174,6 +183,43 @@ export function SongList() {
     setIsFetchingContent(false);
   };
 
+  const handleCreateSong = async () => {
+    if (!newTitle.trim() || !groupId) return;
+    if (newInputMode === 'url' && !newUrl.trim()) { setNewError('URL er påkrevd.'); return; }
+    setNewError('');
+    setIsCreatingSong(true);
+    const headers = await pgHeaders();
+    const res = await fetch(`${BASE()}/rest/v1/songs`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        group_id: groupId,
+        title: newTitle.trim(),
+        url: newInputMode === 'url' ? newUrl.trim() : '',
+        ...(newArtist.trim() ? { artist: newArtist.trim() } : {}),
+        ...(newInputMode === 'lyrics' && newLyrics.trim() ? { content: newLyrics.trim() } : {}),
+        ...(username ? { added_by: username } : {}),
+      }),
+    });
+    if (!res.ok) { setNewError('Kunne ikke opprette sang.'); setIsCreatingSong(false); return; }
+    const raw = await res.json();
+    const created = Array.isArray(raw) ? (raw[0] as SongWithTags) : null;
+    if (created && newInputMode === 'url' && newUrl.trim()) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+        await supabase.functions.invoke('fetch-song-content', {
+          body: { url: created.url, song_id: created.id },
+          headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+        });
+      } catch {}
+    }
+    if (created) setSongs(prev => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
+    setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics('');
+    setIsAddingSong(false);
+    setIsCreatingSong(false);
+  };
+
   const handleSaveSong = async () => {
     if (!editingSong || !editTitle.trim() || !groupId) return;
     setIsSaving(true);
@@ -258,10 +304,16 @@ export function SongList() {
               Tilbake
             </Button>
           </div>
-          <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Sanger</h1>
-            <p className="text-sm text-slate-600">Alle sanger lagret i gruppen.</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+              <h1 className="text-2xl font-semibold text-slate-900">Sanger</h1>
+              <p className="text-sm text-slate-600">Alle sanger lagret i gruppen.</p>
+            </div>
+            <Button size="sm" onClick={() => setIsAddingSong(true)}>
+              <Plus className="h-4 w-4" />
+              Ny sang
+            </Button>
           </div>
         </div>
 
@@ -400,6 +452,55 @@ export function SongList() {
           </div>
         )}
       </div>
+
+      <Sheet open={isAddingSong} onOpenChange={(open) => { if (!open) { setIsAddingSong(false); setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics(''); setNewError(''); } }}>
+        <SheetContent side="bottom" className="max-h-[85vh] data-[state=open]:flex data-[state=open]:flex-col">
+          <SheetHeader className="flex-shrink-0">
+            <SheetTitle>Ny sang</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-4 mt-4 overflow-y-auto">
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant={newInputMode === 'url' ? 'default' : 'outline'} onClick={() => setNewInputMode('url')} disabled={isCreatingSong}>URL</Button>
+              <Button type="button" size="sm" variant={newInputMode === 'lyrics' ? 'default' : 'outline'} onClick={() => setNewInputMode('lyrics')} disabled={isCreatingSong}>Sangtekst</Button>
+            </div>
+            {newInputMode === 'url' && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">URL</label>
+                <Input placeholder="https://www.nortabs.net/..." value={newUrl} onChange={(e) => setNewUrl(e.target.value)} disabled={isCreatingSong} />
+                <p className="text-xs text-slate-400">Sanger fra Nortabs hentes automatisk med tekst.</p>
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Tittel</label>
+              <Input placeholder="Sangnavn" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} disabled={isCreatingSong} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Artist <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+              <Input placeholder="Artistnavn" value={newArtist} onChange={(e) => setNewArtist(e.target.value)} disabled={isCreatingSong} />
+            </div>
+            {newInputMode === 'lyrics' && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-slate-700">Sangtekst</label>
+                <textarea
+                  className="w-full min-w-0 rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-base outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-sky-500 md:text-sm"
+                  rows={8}
+                  placeholder="Lim inn sangteksten her..."
+                  value={newLyrics}
+                  onChange={(e) => setNewLyrics(e.target.value)}
+                  disabled={isCreatingSong}
+                />
+              </div>
+            )}
+            {newError && <p className="text-sm text-red-600">{newError}</p>}
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="outline" onClick={() => setIsAddingSong(false)} disabled={isCreatingSong}>Avbryt</Button>
+              <Button onClick={handleCreateSong} disabled={isCreatingSong || !newTitle.trim() || (newInputMode === 'url' && !newUrl.trim())}>
+                {isCreatingSong ? 'Lagrer…' : 'Lagre sang'}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={!!editingSong} onOpenChange={(open) => { if (!open) setEditingSong(null); }}>
         <SheetContent
