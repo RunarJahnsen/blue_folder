@@ -14,10 +14,8 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function fetchMemberships(userId: string): Promise<GroupMember[]> {
+async function fetchMemberships(userId: string, token: string): Promise<GroupMember[]> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
     const headers = {
       apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       Authorization: `Bearer ${token}`,
@@ -74,7 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[Auth] getSession resolved — user:', session?.user?.id ?? null);
       try {
         if (session?.user) {
-          const m = await fetchMemberships(session.user.id);
+          const token = session.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const m = await fetchMemberships(session.user.id, token);
           setMemberships(m);
         }
         setSession(session);
@@ -96,15 +95,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[Auth] onAuthStateChange event:', event, 'user:', session?.user?.id ?? null);
 
       if (event === 'INITIAL_SESSION') {
-        // getSession() handles this path — but we must ensure isLoading becomes false
-        // even if getSession's fetchMemberships takes time or fails.
+        // Handled by getSession() above. Unblock UI immediately so ProtectedRoute
+        // does not wait forever if getSession's async work takes time.
         setIsLoading(false);
         return;
       }
 
       try {
         if (session?.user) {
-          const m = await fetchMemberships(session.user.id);
+          // Use the token from the event's session directly — do NOT call
+          // supabase.auth.getSession() here, it deadlocks inside onAuthStateChange.
+          const token = session.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const m = await fetchMemberships(session.user.id, token);
           setMemberships(m);
         } else {
           setMemberships([]);
