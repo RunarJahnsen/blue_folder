@@ -13,7 +13,7 @@ export interface Folder {
   status: 'planned' | 'active' | 'completed';
   mode: 'host_only' | 'suggest' | 'open';
   current_queue_item_id?: string;
-  host_session_id?: string;
+  owner_user_id?: string;
   join_code?: string;
   created_at: string;
   updated_at: string;

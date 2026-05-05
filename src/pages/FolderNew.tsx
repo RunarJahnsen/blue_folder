@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { useSession } from '@/hooks/useSession';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +42,7 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function FolderNew() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const sessionId = useSession();
+  const { user } = useAuth();
 
   const [copyMode, setCopyMode] = useState<'new' | 'copy'>('new');
   const [sourceFolders, setSourceFolders] = useState<SourceFolder[]>([]);
@@ -117,7 +117,7 @@ export function FolderNew() {
       date,
       status: 'planned',
       mode,
-      ...(sessionId ? { host_session_id: sessionId } : {}),
+      ...(user?.id ? { owner_user_id: user.id } : {}),
     };
 
     const folderRes = await fetch(`${base}/rest/v1/folders`, {

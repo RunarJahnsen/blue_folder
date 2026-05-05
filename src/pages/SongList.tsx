@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 import { ArrowLeft, Heart, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Favorite, SongWithTags, Tag, SongTagEntry } from '@/lib/types';
@@ -13,6 +12,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+
+async function pgHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return {
+    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 
 export function SongList() {
   const { groupId } = useParams();
@@ -39,27 +50,20 @@ export function SongList() {
   useEffect(() => {
     if (!groupId) return;
     (async () => {
-      const [songsResult, favsResult, tagsResult] = await Promise.all([
-        supabase
-          .from('songs')
-          .select('id, group_id, title, artist, url, content, created_at, updated_at, song_tags(id, tag_id, tags(id, name))')
-          .eq('group_id', groupId)
-          .order('title', { ascending: true }),
-        supabase
-          .from('favorites')
-          .select('id, song_id')
-          .eq('group_id', groupId),
-        supabase
-          .from('tags')
-          .select('id, group_id, name, created_at')
-          .eq('group_id', groupId)
-          .order('name'),
+      const headers = await pgHeaders();
+      const base = BASE();
+      const [songsRes, favsRes, tagsRes] = await Promise.all([
+        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
+        fetch(`${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
+        fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
       ]);
-
-      if (songsResult.error) setError('Kunne ikke hente sanger.');
-      else if (songsResult.data) setSongs(songsResult.data as unknown as SongWithTags[]);
-      if (favsResult.data) setFavorites(favsResult.data as Favorite[]);
-      if (tagsResult.data) setAllTags(tagsResult.data as Tag[]);
+      const [songsData, favsData, tagsData] = await Promise.all([
+        songsRes.json(), favsRes.json(), tagsRes.json(),
+      ]);
+      if (!Array.isArray(songsData)) setError('Kunne ikke hente sanger.');
+      else setSongs(songsData as unknown as SongWithTags[]);
+      if (Array.isArray(favsData)) setFavorites(favsData as Favorite[]);
+      if (Array.isArray(tagsData)) setAllTags(tagsData as Tag[]);
       setIsLoading(false);
     })();
   }, [groupId]);
@@ -96,10 +100,12 @@ export function SongList() {
 
   const handleDelete = async (songId: string) => {
     setIsDeleting(true);
-    await supabase.from('favorites').delete().eq('song_id', songId);
-    await supabase.from('folder_song_entries').delete().eq('song_id', songId);
-    const { error } = await supabase.from('songs').delete().eq('id', songId);
-    if (error) {
+    const headers = await pgHeaders();
+    const base = BASE();
+    await fetch(`${base}/rest/v1/favorites?song_id=eq.${songId}`, { method: 'DELETE', headers });
+    await fetch(`${base}/rest/v1/folder_song_entries?song_id=eq.${songId}`, { method: 'DELETE', headers });
+    const res = await fetch(`${base}/rest/v1/songs?id=eq.${songId}`, { method: 'DELETE', headers });
+    if (!res.ok) {
       setError('Kunne ikke slette sangen. Prøv igjen.');
     } else {
       setSongs((prev) => prev.filter((s) => s.id !== songId));
@@ -145,12 +151,23 @@ export function SongList() {
     if (!editingSong || !editUrl.trim()) return;
     setIsFetchingContent(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
       await supabase.functions.invoke('fetch-song-content', {
         body: { url: editUrl.trim(), song_id: editingSong.id },
-        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
       });
-      const { data } = await supabase.from('songs').select('content').eq('id', editingSong.id).single();
-      if (data?.content) setEditContent(data.content);
+      const headers = await pgHeaders();
+      const res = await fetch(
+        `${BASE()}/rest/v1/songs?id=eq.${editingSong.id}&select=content`,
+        { headers }
+      );
+      const raw = await res.json();
+      const content = Array.isArray(raw) ? raw[0]?.content : null;
+      if (content) setEditContent(content);
     } catch {}
     setIsFetchingContent(false);
   };
@@ -158,35 +175,47 @@ export function SongList() {
   const handleSaveSong = async () => {
     if (!editingSong || !editTitle.trim() || !groupId) return;
     setIsSaving(true);
+    const headers = await pgHeaders();
+    const base = BASE();
 
-    const { error } = await supabase
-      .from('songs')
-      .update({
+    const updateRes = await fetch(`${base}/rest/v1/songs?id=eq.${editingSong.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
         title: editTitle.trim(),
         artist: editArtist.trim() || null,
         url: editUrl.trim(),
         content: editContent.trim() || null,
-      })
-      .eq('id', editingSong.id);
-    if (error) { setIsSaving(false); return; }
+      }),
+    });
+    if (!updateRes.ok) { setIsSaving(false); return; }
 
     let savedTags: Tag[] = [];
     if (editTagNames.length > 0) {
-      const { data: upsertedTags } = await supabase
-        .from('tags')
-        .upsert(
-          editTagNames.map(name => ({ group_id: groupId, name })),
-          { onConflict: 'group_id,name' }
-        )
-        .select();
-      if (upsertedTags) savedTags = upsertedTags as Tag[];
+      const upsertRes = await fetch(`${base}/rest/v1/tags?on_conflict=group_id,name`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(editTagNames.map(name => ({ group_id: groupId, name }))),
+      });
+      if (upsertRes.ok) {
+        const raw = await upsertRes.json();
+        if (Array.isArray(raw)) savedTags = raw as Tag[];
+      }
     }
 
-    await supabase.from('song_tags').delete().eq('song_id', editingSong.id);
+    await fetch(`${base}/rest/v1/song_tags?song_id=eq.${editingSong.id}`, {
+      method: 'DELETE',
+      headers,
+    });
+
     if (savedTags.length > 0) {
-      await supabase.from('song_tags').insert(
-        savedTags.map(tag => ({ song_id: editingSong.id, tag_id: tag.id, group_id: groupId }))
-      );
+      await fetch(`${base}/rest/v1/song_tags`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(
+          savedTags.map(tag => ({ song_id: editingSong.id, tag_id: tag.id, group_id: groupId }))
+        ),
+      });
     }
 
     const newSongTags: SongTagEntry[] = savedTags.map(tag => ({

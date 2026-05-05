@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/sheet';
 import { AddSongModal } from '@/components/AddSongModal';
 import { SongContentSheet } from '@/components/SongContentSheet';
-import { useSession } from '@/hooks/useSession';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SongWithEntry extends FolderSongEntry {
   songs?: Song;
@@ -38,7 +38,7 @@ const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 export function FolderView() {
   const { groupId, folderId } = useParams();
   const navigate = useNavigate();
-  const sessionId = useSession();
+  const { user, isAdmin } = useAuth();
   const [folder, setFolder] = useState<Folder | null>(null);
   const [entries, setEntries] = useState<SongWithEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -211,7 +211,7 @@ export function FolderView() {
     [favorites]
   );
 
-  const isHost = folder?.host_session_id === sessionId;
+  const isHost = folder?.owner_user_id === user?.id || isAdmin(groupId!);
   const showHostControls = folder?.mode === 'open' || isHost;
 
   const handleToggleFavorite = async (songId: string) => {

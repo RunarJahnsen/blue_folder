@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 import type { Favorite, Song, SongWithTags, Tag } from '@/lib/types';
 import {
   Sheet,
@@ -26,6 +24,18 @@ interface AddSongModalProps {
 type Step = 'input' | 'url-match' | 'title-match';
 type InputMode = 'url' | 'lyrics';
 type FavoriteWithSong = Favorite & { songs: SongWithTags };
+
+async function pgHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return {
+    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+const BASE = () => import.meta.env.VITE_SUPABASE_URL as string;
 
 export function AddSongModal({
   isOpen,
@@ -66,11 +76,13 @@ export function AddSongModal({
     if (activeTab !== 'favorites' || !groupId) return;
     setIsFetchingFavorites(true);
     (async () => {
-      const { data } = await supabase
-        .from('favorites')
-        .select('id, song_id, group_id, created_at, songs(id, title, artist, url, content, song_tags(id, tag_id, tags(id, name)))')
-        .eq('group_id', groupId);
-      if (data) setGroupFavorites(data as unknown as FavoriteWithSong[]);
+      const headers = await pgHeaders();
+      const res = await fetch(
+        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,song_tags(id,tag_id,tags(id,name)))`,
+        { headers }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) setGroupFavorites(data as unknown as FavoriteWithSong[]);
       setIsFetchingFavorites(false);
     })();
   }, [activeTab, groupId]);
@@ -79,20 +91,15 @@ export function AddSongModal({
     if (activeTab !== 'all' || !groupId) return;
     setIsFetchingAllSongs(true);
     (async () => {
-      const [songsResult, tagsResult] = await Promise.all([
-        supabase
-          .from('songs')
-          .select('*, song_tags(id, tag_id, tags(id, name))')
-          .eq('group_id', groupId)
-          .order('title'),
-        supabase
-          .from('tags')
-          .select('id, group_id, name, created_at')
-          .eq('group_id', groupId)
-          .order('name'),
+      const headers = await pgHeaders();
+      const base = BASE();
+      const [songsRes, tagsRes] = await Promise.all([
+        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=*,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
+        fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
       ]);
-      if (songsResult.data) setAllSongs(songsResult.data as unknown as SongWithTags[]);
-      if (tagsResult.data) setAllModalTags(tagsResult.data as Tag[]);
+      const [songsData, tagsData] = await Promise.all([songsRes.json(), tagsRes.json()]);
+      if (Array.isArray(songsData)) setAllSongs(songsData as unknown as SongWithTags[]);
+      if (Array.isArray(tagsData)) setAllModalTags(tagsData as Tag[]);
       setIsFetchingAllSongs(false);
     })();
   }, [activeTab, groupId]);
@@ -119,33 +126,31 @@ export function AddSongModal({
     setError('');
 
     try {
-      const { data: existingData } = await supabase
-        .from('songs')
-        .select('*')
-        .eq('group_id', groupId)
-        .eq('url', url)
-        .single();
+      const headers = await pgHeaders();
+      const base = BASE();
 
-      if (existingData) {
-        setExistingSong(existingData as Song);
+      const urlRes = await fetch(
+        `${base}/rest/v1/songs?group_id=eq.${groupId}&url=eq.${encodeURIComponent(url)}&select=*&limit=1`,
+        { headers }
+      );
+      const urlData = await urlRes.json();
+      const byUrl = Array.isArray(urlData) ? (urlData[0] as Song | undefined) : undefined;
+
+      if (byUrl) {
+        setExistingSong(byUrl);
         setStep('url-match');
       } else {
-        try {
-          const { data: existingByTitle } = await supabase
-            .from('songs')
-            .select('*')
-            .eq('group_id', groupId)
-            .ilike('title', title)
-            .limit(1)
-            .maybeSingle();
+        const titleRes = await fetch(
+          `${base}/rest/v1/songs?group_id=eq.${groupId}&title=ilike.${encodeURIComponent(title)}&select=*&limit=1`,
+          { headers }
+        );
+        const titleData = await titleRes.json();
+        const byTitle = Array.isArray(titleData) ? (titleData[0] as Song | undefined) : undefined;
 
-          if (existingByTitle) {
-            setExistingSong(existingByTitle as Song);
-            setStep('title-match');
-          } else {
-            await createNewSongAndEntry();
-          }
-        } catch (err) {
+        if (byTitle) {
+          setExistingSong(byTitle);
+          setStep('title-match');
+        } else {
           await createNewSongAndEntry();
         }
       }
@@ -166,23 +171,22 @@ export function AddSongModal({
     setError('');
 
     try {
-      const { data: newSong, error: songError } = await supabase
-        .from('songs')
-        .insert({
+      const headers = await pgHeaders();
+      const res = await fetch(`${BASE()}/rest/v1/songs`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
           group_id: groupId,
           title,
           url: '',
           content: lyrics,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
-        } as any)
-        .select()
-        .single<Song>();
-
-      if (songError || !newSong) {
-        setError('Kunne ikke opprett sang.');
-        return;
-      }
-
+        }),
+      });
+      if (!res.ok) { setError('Kunne ikke opprett sang.'); return; }
+      const raw = await res.json();
+      const newSong = Array.isArray(raw) ? (raw[0] as Song) : null;
+      if (!newSong) { setError('Kunne ikke opprett sang.'); return; }
       await createFolderSongEntry(newSong.id);
     } catch {
       setError('En feil oppstod.');
@@ -193,27 +197,32 @@ export function AddSongModal({
 
   const createNewSongAndEntry = async () => {
     try {
-      const { data: newSong, error: songError } = await supabase
-        .from('songs')
-        .insert({
+      const headers = await pgHeaders();
+      const songRes = await fetch(`${BASE()}/rest/v1/songs`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
           group_id: groupId,
           title,
           url,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
-        } as any)
-        .select()
-        .single<Song>();
-
-      if (songError || !newSong) {
-        setError('Kunne ikke opprett sang.');
-        return;
-      }
+        }),
+      });
+      if (!songRes.ok) { setError('Kunne ikke opprett sang.'); return; }
+      const raw = await songRes.json();
+      const newSong = Array.isArray(raw) ? (raw[0] as Song) : null;
+      if (!newSong) { setError('Kunne ikke opprett sang.'); return; }
 
       let contentFetched = false;
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
         const res = await supabase.functions.invoke('fetch-song-content', {
           body: { url: newSong.url, song_id: newSong.id },
-          headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${token}`,
+          },
         });
         contentFetched = !!(res.data?.content);
       } catch {}
@@ -233,17 +242,20 @@ export function AddSongModal({
       const state = folderMode === 'suggest' ? 'suggested' : 'queued';
       const position = folderMode === 'suggest' ? undefined : maxPosition + 1;
 
-      const { error: entryError } = await supabase
-        .from('folder_song_entries')
-        .insert({
+      const headers = await pgHeaders();
+      const res = await fetch(`${BASE()}/rest/v1/folder_song_entries`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
           group_id: groupId,
           folder_id: folderId,
           song_id: songId,
           state,
-          position,
-        } as any);
+          ...(position !== undefined ? { position } : {}),
+        }),
+      });
 
-      if (entryError) {
+      if (!res.ok) {
         setError('Kunne ikke legge til sang i permen.');
         return;
       }
@@ -271,7 +283,12 @@ export function AddSongModal({
   const handleSaveManualContent = async () => {
     if (!warningSongId || !manualContent.trim()) return;
     setIsSavingManual(true);
-    await supabase.from('songs').update({ content: manualContent.trim() }).eq('id', warningSongId);
+    const headers = await pgHeaders();
+    await fetch(`${BASE()}/rest/v1/songs?id=eq.${warningSongId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ content: manualContent.trim() }),
+    });
     setIsSavingManual(false);
     handleClose();
   };
