@@ -29,6 +29,7 @@ export interface Song {
   url: string;
   content?: string;
   source_label?: string;
+  song_number?: string;
   added_by?: string;
   updated_by?: string;
   created_at: string;

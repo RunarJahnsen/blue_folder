@@ -46,22 +46,28 @@ export function SongList() {
   const [sortBy, setSortBy] = useState<'alpha-asc' | 'alpha-desc' | 'artist-asc' | 'artist-desc' | 'plays' | 'recent' | 'newest' | 'oldest'>('alpha-asc');
   const [playedEntries, setPlayedEntries] = useState<Array<{ song_id: string; played_at: string | null }>>([]);
 
+  // Edit sheet state
   const [editingSong, setEditingSong] = useState<SongWithTags | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editSongNumber, setEditSongNumber] = useState('');
   const [editTagNames, setEditTagNames] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
 
+  // New song sheet state
   const [isAddingSong, setIsAddingSong] = useState(false);
   const [newInputMode, setNewInputMode] = useState<'url' | 'lyrics'>('url');
   const [newTitle, setNewTitle] = useState('');
   const [newArtist, setNewArtist] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [newLyrics, setNewLyrics] = useState('');
+  const [newSongNumber, setNewSongNumber] = useState('');
+  const [newTagNames, setNewTagNames] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
   const [newError, setNewError] = useState('');
   const [isCreatingSong, setIsCreatingSong] = useState(false);
   const [isNewAutoFilling, setIsNewAutoFilling] = useState(false);
@@ -73,7 +79,7 @@ export function SongList() {
       const headers = await pgHeaders();
       const base = BASE();
       const [songsRes, favsRes, tagsRes, userFavsRes, playedRes] = await Promise.all([
-        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
+        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,song_number,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
         fetch(`${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
         fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
         fetch(`${base}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
@@ -187,7 +193,8 @@ export function SongList() {
       result = result.filter(s =>
         (s.title?.toLowerCase() ?? '').includes(q) ||
         (s.artist?.toLowerCase() ?? '').includes(q) ||
-        (s.content?.toLowerCase() ?? '').includes(q)
+        (s.content?.toLowerCase() ?? '').includes(q) ||
+        (s.song_number?.toLowerCase() ?? '').includes(q)
       );
     }
     if (activeAddedByFilter.length > 0) {
@@ -236,6 +243,14 @@ export function SongList() {
       .slice(0, 5);
   }, [tagInput, allTags, editTagNames]);
 
+  const newTagSuggestions = useMemo(() => {
+    const q = newTagInput.trim().toLowerCase();
+    if (!q) return [];
+    return allTags
+      .filter(t => t.name.includes(q) && !newTagNames.includes(t.name))
+      .slice(0, 5);
+  }, [newTagInput, allTags, newTagNames]);
+
   const handleDelete = async (songId: string) => {
     setIsDeleting(true);
     const headers = await pgHeaders();
@@ -258,6 +273,7 @@ export function SongList() {
     setEditArtist(song.artist ?? '');
     setEditUrl(song.url ?? '');
     setEditContent(song.content ?? '');
+    setEditSongNumber(song.song_number ?? '');
     setEditTagNames(
       (song.song_tags?.map(st => st.tags?.name).filter(Boolean) as string[]) ?? []
     );
@@ -282,6 +298,27 @@ export function SongList() {
       if (!q) return;
       const exactMatch = tagSuggestions.find(t => t.name === q);
       handleAddTagToEdit(exactMatch ? exactMatch.name : q);
+    }
+  };
+
+  const handleAddTagToNew = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    if (!normalized || newTagNames.includes(normalized)) { setNewTagInput(''); return; }
+    setNewTagNames(prev => [...prev, normalized]);
+    setNewTagInput('');
+  };
+
+  const handleRemoveTagFromNew = (name: string) => {
+    setNewTagNames(prev => prev.filter(t => t !== name));
+  };
+
+  const handleNewTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = newTagInput.trim().toLowerCase();
+      if (!q) return;
+      const exactMatch = newTagSuggestions.find(t => t.name === q);
+      handleAddTagToNew(exactMatch ? exactMatch.name : q);
     }
   };
 
@@ -324,6 +361,7 @@ export function SongList() {
         title: newTitle.trim(),
         url: newInputMode === 'url' ? newUrl.trim() : '',
         ...(newArtist.trim() ? { artist: newArtist.trim() } : {}),
+        ...(newSongNumber.trim() ? { song_number: newSongNumber.trim() } : {}),
         ...(newInputMode === 'lyrics' && newLyrics.trim() ? { content: newLyrics.trim() } : {}),
         ...(username ? { added_by: username } : {}),
       }),
@@ -331,6 +369,7 @@ export function SongList() {
     if (!res.ok) { setNewError('Kunne ikke opprette sang.'); setIsCreatingSong(false); return; }
     const raw = await res.json();
     const created = Array.isArray(raw) ? (raw[0] as SongWithTags) : null;
+
     if (created && newInputMode === 'url' && newUrl.trim()) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -341,8 +380,39 @@ export function SongList() {
         });
       } catch {}
     }
+
+    if (created && newTagNames.length > 0) {
+      const upsertRes = await fetch(`${BASE()}/rest/v1/tags?on_conflict=group_id,name`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(newTagNames.map(name => ({ group_id: groupId, name }))),
+      });
+      if (upsertRes.ok) {
+        const rawTags = await upsertRes.json();
+        if (Array.isArray(rawTags) && rawTags.length > 0) {
+          const savedTags = rawTags as Tag[];
+          await fetch(`${BASE()}/rest/v1/song_tags`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(savedTags.map(tag => ({ song_id: created.id, tag_id: tag.id, group_id: groupId }))),
+          });
+          created.song_tags = savedTags.map(tag => ({
+            id: '', song_id: created.id, tag_id: tag.id, group_id: groupId, tags: tag,
+          })) as SongTagEntry[];
+          setAllTags(prev => {
+            const existingIds = new Set(prev.map(t => t.id));
+            const newTags = savedTags.filter(t => !existingIds.has(t.id));
+            return newTags.length > 0
+              ? [...prev, ...newTags].sort((a, b) => a.name.localeCompare(b.name))
+              : prev;
+          });
+        }
+      }
+    }
+
     if (created) setSongs(prev => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
     setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics('');
+    setNewSongNumber(''); setNewTagNames([]); setNewTagInput('');
     setIsAddingSong(false);
     setIsCreatingSong(false);
   };
@@ -386,6 +456,7 @@ export function SongList() {
         artist: editArtist.trim() || null,
         url: editUrl.trim(),
         content: editContent.trim() || null,
+        song_number: editSongNumber.trim() || null,
         ...(updatedBy ? { updated_by: updatedBy } : {}),
       }),
     });
@@ -429,7 +500,15 @@ export function SongList() {
 
     setSongs(prev => prev.map(s =>
       s.id === editingSong.id
-        ? { ...s, title: editTitle.trim(), artist: editArtist.trim() || undefined, url: editUrl.trim(), content: editContent.trim() || undefined, song_tags: newSongTags }
+        ? {
+            ...s,
+            title: editTitle.trim(),
+            artist: editArtist.trim() || undefined,
+            url: editUrl.trim(),
+            content: editContent.trim() || undefined,
+            song_number: editSongNumber.trim() || undefined,
+            song_tags: newSongTags,
+          }
         : s
     ));
 
@@ -475,7 +554,7 @@ export function SongList() {
         <div className="flex gap-2">
           <Input
             type="search"
-            placeholder="Søk på tittel, artist eller tekst…"
+            placeholder="Søk på tittel, artist, nummer eller tekst…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1"
@@ -496,7 +575,7 @@ export function SongList() {
           </select>
         </div>
 
-        {/* Favorite filters — only for logged-in users */}
+        {/* Favorite filters */}
         {user && (
           <div className="flex flex-wrap gap-2 px-1">
             <button
@@ -636,9 +715,14 @@ export function SongList() {
                         <Heart className={`h-4 w-4 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
                       </button>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">
-                          {song.artist ? `${song.artist} — ${song.title}` : song.title}
-                        </p>
+                        <div className="flex items-baseline gap-1.5">
+                          {song.song_number && (
+                            <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
+                          )}
+                          <p className="text-sm font-medium text-slate-900 truncate">
+                            {song.artist ? `${song.artist} — ${song.title}` : song.title}
+                          </p>
+                        </div>
                         {song.url && (
                           <a
                             href={song.url}
@@ -716,7 +800,15 @@ export function SongList() {
         )}
       </div>
 
-      <Sheet open={isAddingSong} onOpenChange={(open) => { if (!open) { setIsAddingSong(false); setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics(''); setNewError(''); setNewAutoFillHint(''); setIsNewAutoFilling(false); } }}>
+      {/* Ny sang sheet */}
+      <Sheet open={isAddingSong} onOpenChange={(open) => {
+        if (!open) {
+          setIsAddingSong(false);
+          setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics('');
+          setNewSongNumber(''); setNewTagNames([]); setNewTagInput('');
+          setNewError(''); setNewAutoFillHint(''); setIsNewAutoFilling(false);
+        }
+      }}>
         <SheetContent side="bottom" className="max-h-[85vh] data-[state=open]:flex data-[state=open]:flex-col">
           <SheetHeader className="flex-shrink-0">
             <SheetTitle>Ny sang</SheetTitle>
@@ -749,6 +841,10 @@ export function SongList() {
               <label className="text-sm font-medium text-slate-700">Artist <span className="text-slate-400 font-normal">(valgfritt)</span></label>
               <Input placeholder="Artistnavn" value={newArtist} onChange={(e) => setNewArtist(e.target.value)} disabled={isCreatingSong} />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+              <Input placeholder="f.eks. 42" value={newSongNumber} onChange={(e) => setNewSongNumber(e.target.value)} disabled={isCreatingSong} />
+            </div>
             {newInputMode === 'lyrics' && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-slate-700">Sangtekst</label>
@@ -762,6 +858,67 @@ export function SongList() {
                 />
               </div>
             )}
+
+            {/* Tag editor for new song */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                Tagger <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              {newTagNames.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {newTagNames.map(name => (
+                    <span
+                      key={name}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-700"
+                    >
+                      {name}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTagFromNew(name)}
+                        className="border-0 bg-transparent p-0 leading-none text-sky-500 hover:text-sky-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    value={newTagInput}
+                    onChange={(e) => setNewTagInput(e.target.value)}
+                    onKeyDown={handleNewTagInputKeyDown}
+                    placeholder="Legg til tagg…"
+                    disabled={isCreatingSong}
+                  />
+                  {newTagSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                      {newTagSuggestions.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); handleAddTagToNew(tag.name); }}
+                          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                        >
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {newTagInput.trim() && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); handleAddTagToNew(newTagInput); }}
+                    className="flex-shrink-0 self-start inline-flex items-center rounded-full border-0 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+            </div>
+
             {newError && <p className="text-sm text-red-600">{newError}</p>}
             <div className="flex gap-3 justify-end pt-2">
               <Button variant="outline" onClick={() => setIsAddingSong(false)} disabled={isCreatingSong}>Avbryt</Button>
@@ -773,6 +930,7 @@ export function SongList() {
         </SheetContent>
       </Sheet>
 
+      {/* Rediger sang sheet */}
       <Sheet open={!!editingSong} onOpenChange={(open) => { if (!open) setEditingSong(null); }}>
         <SheetContent
           side="bottom"
@@ -799,6 +957,16 @@ export function SongList() {
                 value={editArtist}
                 onChange={(e) => setEditArtist(e.target.value)}
                 placeholder="Artistnavn"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              <Input
+                value={editSongNumber}
+                onChange={(e) => setEditSongNumber(e.target.value)}
+                placeholder="f.eks. 42"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -862,37 +1030,37 @@ export function SongList() {
                 </div>
               )}
               <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagInputKeyDown}
-                  placeholder="Legg til tagg…"
-                />
-                {tagSuggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
-                    {tagSuggestions.map(tag => (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); handleAddTagToEdit(tag.name); }}
-                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
-                      >
-                        {tag.name}
-                      </button>
-                    ))}
-                  </div>
+                <div className="relative flex-1">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleTagInputKeyDown}
+                    placeholder="Legg til tagg…"
+                  />
+                  {tagSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                      {tagSuggestions.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); handleAddTagToEdit(tag.name); }}
+                          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                        >
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {tagInput.trim() && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); handleAddTagToEdit(tagInput); }}
+                    className="flex-shrink-0 self-start inline-flex items-center rounded-full border-0 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                  >
+                    +
+                  </button>
                 )}
-              </div>
-              {tagInput.trim() && (
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); handleAddTagToEdit(tagInput); }}
-                  className="flex-shrink-0 self-start inline-flex items-center rounded-full border-0 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                >
-                  +
-                </button>
-              )}
               </div>
             </div>
 

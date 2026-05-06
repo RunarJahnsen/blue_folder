@@ -106,7 +106,12 @@ function SortableQueueItem({
                 #{entry.position || '–'}
               </span>
               <div className="flex-1 min-w-0">
-                {titleEl}
+                <div className="flex items-baseline gap-1.5">
+                  {song?.song_number && (
+                    <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
+                  )}
+                  {titleEl}
+                </div>
                 {song?.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
               </div>
               <div className="flex-shrink-0 flex items-center -mr-2">
@@ -209,7 +214,7 @@ export function FolderView() {
         setFolder(folderData);
 
         const entriesRes = await fetch(
-          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content)&order=state.asc,position.asc`,
+          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content,song_number)&order=state.asc,position.asc`,
           { headers }
         );
         const entriesRaw = await entriesRes.json();
@@ -257,7 +262,7 @@ export function FolderView() {
           const newRow = payload.new as FolderSongEntry;
           const headers = await pgHeaders();
           const res = await fetch(
-            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content)`,
+            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content,song_number)`,
             { headers }
           );
           const raw = await res.json();
@@ -722,7 +727,7 @@ export function FolderView() {
       try {
         const headers = await pgHeaders();
         const res = await fetch(
-          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content)&order=state.asc,position.asc`,
+          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content,song_number)&order=state.asc,position.asc`,
           { headers }
         );
         const raw = await res.json();
@@ -760,7 +765,12 @@ export function FolderView() {
 
     return (
       <div>
-        {titleEl}
+        <div className="flex items-baseline gap-1.5">
+          {song.song_number && (
+            <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
+          )}
+          {titleEl}
+        </div>
         {song.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
       </div>
     );

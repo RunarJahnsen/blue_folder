@@ -98,7 +98,7 @@ export function AddSongModal({
     (async () => {
       const headers = await pgHeaders();
       const res = await fetch(
-        `${BASE()}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id,songs(id,title,artist,url,content,added_by,song_tags(id,tag_id,tags(id,name)))`,
+        `${BASE()}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id,songs(id,title,artist,url,content,song_number,added_by,song_tags(id,tag_id,tags(id,name)))`,
         { headers }
       );
       const data = await res.json();
@@ -120,7 +120,7 @@ export function AddSongModal({
     (async () => {
       const headers = await pgHeaders();
       const res = await fetch(
-        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,added_by,song_tags(id,tag_id,tags(id,name)))`,
+        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,song_number,added_by,song_tags(id,tag_id,tags(id,name)))`,
         { headers }
       );
       const data = await res.json();
@@ -432,7 +432,8 @@ export function AddSongModal({
       const t = s.title?.toLowerCase() ?? '';
       const a = s.artist?.toLowerCase() ?? '';
       const c = s.content?.toLowerCase() ?? '';
-      return t.includes(q) || a.includes(q) || c.includes(q);
+      const n = s.song_number?.toLowerCase() ?? '';
+      return t.includes(q) || a.includes(q) || c.includes(q) || n.includes(q);
     });
   })();
 
@@ -445,7 +446,8 @@ export function AddSongModal({
         const a = s.artist?.toLowerCase() ?? '';
         const c = s.content?.toLowerCase() ?? '';
         const ab = s.added_by?.toLowerCase() ?? '';
-        return t.includes(q) || a.includes(q) || c.includes(q) || ab.includes(q);
+        const n = s.song_number?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q) || ab.includes(q) || n.includes(q);
       });
     }
     if (activeModalFilterTags.length > 0) {
@@ -477,7 +479,8 @@ export function AddSongModal({
         const a = fav.songs?.artist?.toLowerCase() ?? '';
         const c = fav.songs?.content?.toLowerCase() ?? '';
         const ab = (fav.songs as unknown as { added_by?: string })?.added_by?.toLowerCase() ?? '';
-        return t.includes(q) || a.includes(q) || c.includes(q) || ab.includes(q);
+        const n = fav.songs?.song_number?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q) || ab.includes(q) || n.includes(q);
       });
     }
     if (activeFavFilterTags.length > 0) {
@@ -732,9 +735,14 @@ export function AddSongModal({
                       onClick={() => createFolderSongEntry(song.id)}
                       className="flex-1 min-w-0 text-left border-0 bg-transparent p-0 hover:opacity-70 transition-opacity"
                     >
-                      <p className="text-sm font-medium text-slate-900 truncate">
-                        {song.artist ? `${song.artist} — ${song.title}` : song.title}
-                      </p>
+                      <div className="flex items-baseline gap-1.5">
+                        {song.song_number && (
+                          <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
+                        )}
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {song.artist ? `${song.artist} — ${song.title}` : song.title}
+                        </p>
+                      </div>
                       <p className="text-xs text-slate-400 mt-0.5">
                         {song.url ? truncateUrl(song.url) : 'Sangtekst'}
                       </p>
@@ -818,9 +826,14 @@ export function AddSongModal({
                       onClick={() => createFolderSongEntry(fav.songs.id)}
                       className="flex-1 min-w-0 text-left border-0 bg-transparent p-0 hover:opacity-70 transition-opacity"
                     >
-                      <p className="text-sm font-medium text-slate-900 truncate">
-                        {fav.songs.artist ? `${fav.songs.artist} — ${fav.songs.title}` : fav.songs.title}
-                      </p>
+                      <div className="flex items-baseline gap-1.5">
+                        {fav.songs.song_number && (
+                          <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{fav.songs.song_number}</span>
+                        )}
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {fav.songs.artist ? `${fav.songs.artist} — ${fav.songs.title}` : fav.songs.title}
+                        </p>
+                      </div>
                       <p className="text-xs text-slate-400 mt-0.5">{truncateUrl(fav.songs.url)}</p>
                     </button>
                   </div>
@@ -893,9 +906,14 @@ export function AddSongModal({
                       onClick={() => createFolderSongEntry(song.id)}
                       className="flex-1 min-w-0 text-left border-0 bg-transparent p-0 hover:opacity-70 transition-opacity"
                     >
-                      <p className="text-sm font-medium text-slate-900 truncate">
-                        {song.artist ? `${song.artist} — ${song.title}` : song.title}
-                      </p>
+                      <div className="flex items-baseline gap-1.5">
+                        {song.song_number && (
+                          <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
+                        )}
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {song.artist ? `${song.artist} — ${song.title}` : song.title}
+                        </p>
+                      </div>
                       <p className="text-xs text-slate-400 mt-0.5">
                         {song.url ? truncateUrl(song.url) : 'Sangtekst'}
                       </p>
