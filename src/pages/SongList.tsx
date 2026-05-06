@@ -382,31 +382,46 @@ export function SongList() {
     }
 
     if (created && newTagNames.length > 0) {
-      const upsertRes = await fetch(`${BASE()}/rest/v1/tags?on_conflict=group_id,name`, {
-        method: 'POST',
-        headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(newTagNames.map(name => ({ group_id: groupId, name }))),
-      });
-      if (upsertRes.ok) {
-        const rawTags = await upsertRes.json();
-        if (Array.isArray(rawTags) && rawTags.length > 0) {
-          const savedTags = rawTags as Tag[];
-          await fetch(`${BASE()}/rest/v1/song_tags`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(savedTags.map(tag => ({ song_id: created.id, tag_id: tag.id, group_id: groupId }))),
-          });
-          created.song_tags = savedTags.map(tag => ({
-            id: '', song_id: created.id, tag_id: tag.id, group_id: groupId, tags: tag,
-          })) as SongTagEntry[];
-          setAllTags(prev => {
-            const existingIds = new Set(prev.map(t => t.id));
-            const newTags = savedTags.filter(t => !existingIds.has(t.id));
-            return newTags.length > 0
-              ? [...prev, ...newTags].sort((a, b) => a.name.localeCompare(b.name))
-              : prev;
-          });
+      const resolvedTags: Tag[] = [];
+      for (const name of newTagNames) {
+        const fetchRes = await fetch(
+          `${BASE()}/rest/v1/tags?group_id=eq.${groupId}&name=eq.${encodeURIComponent(name)}&select=id,group_id,name,created_at&limit=1`,
+          { headers }
+        );
+        if (fetchRes.ok) {
+          const fetchData = await fetchRes.json();
+          if (Array.isArray(fetchData) && fetchData.length > 0) {
+            resolvedTags.push(fetchData[0] as Tag);
+            continue;
+          }
         }
+        const createRes = await fetch(`${BASE()}/rest/v1/tags`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({ group_id: groupId, name }),
+        });
+        if (createRes.ok) {
+          const createData = await createRes.json();
+          const newTag = Array.isArray(createData) ? (createData[0] as Tag) : null;
+          if (newTag) resolvedTags.push(newTag);
+        }
+      }
+      if (resolvedTags.length > 0) {
+        await fetch(`${BASE()}/rest/v1/song_tags`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(resolvedTags.map(tag => ({ song_id: created.id, tag_id: tag.id, group_id: groupId }))),
+        });
+        created.song_tags = resolvedTags.map(tag => ({
+          id: '', song_id: created.id, tag_id: tag.id, group_id: groupId!, tags: tag,
+        })) as SongTagEntry[];
+        setAllTags(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const newTagsToAdd = resolvedTags.filter(t => !existingIds.has(t.id));
+          return newTagsToAdd.length > 0
+            ? [...prev, ...newTagsToAdd].sort((a, b) => a.name.localeCompare(b.name))
+            : prev;
+        });
       }
     }
 

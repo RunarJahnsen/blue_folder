@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useGuestSession } from '@/hooks/useGuestSession';
@@ -59,6 +60,10 @@ export function AddSongModal({
   const [isFetchingFavorites, setIsFetchingFavorites] = useState(false);
   const [favoritesSearch, setFavoritesSearch] = useState('');
   const [activeFavFilterTags, setActiveFavFilterTags] = useState<string[]>([]);
+  const [activeMineFilterTags, setActiveMineFilterTags] = useState<string[]>([]);
+  const [urlTagNames, setUrlTagNames] = useState<string[]>([]);
+  const [urlTagInput, setUrlTagInput] = useState('');
+  const [urlTabTags, setUrlTabTags] = useState<Tag[]>([]);
 
   const [allSongs, setAllSongs] = useState<SongWithTags[]>([]);
   const [isFetchingAllSongs, setIsFetchingAllSongs] = useState(false);
@@ -146,6 +151,70 @@ export function AddSongModal({
     })();
   }, [activeTab, groupId]);
 
+  useEffect(() => {
+    if (activeTab !== 'url' || !groupId) return;
+    (async () => {
+      const headers = await pgHeaders();
+      const res = await fetch(`${BASE()}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers });
+      const data = await res.json();
+      if (Array.isArray(data)) setUrlTabTags(data as Tag[]);
+    })();
+  }, [activeTab, groupId]);
+
+  const saveTagsForSong = async (songId: string, tagNames: string[]) => {
+    const headers = await pgHeaders();
+    for (const name of tagNames) {
+      const fetchRes = await fetch(
+        `${BASE()}/rest/v1/tags?group_id=eq.${groupId}&name=eq.${encodeURIComponent(name)}&select=id,group_id,name,created_at&limit=1`,
+        { headers }
+      );
+      let tagId: string | null = null;
+      if (fetchRes.ok) {
+        const data = await fetchRes.json();
+        if (Array.isArray(data) && data.length > 0) tagId = (data[0] as Tag).id;
+      }
+      if (!tagId) {
+        const createRes = await fetch(`${BASE()}/rest/v1/tags`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({ group_id: groupId, name }),
+        });
+        if (createRes.ok) {
+          const raw = await createRes.json();
+          tagId = Array.isArray(raw) && raw[0] ? (raw[0] as Tag).id : null;
+        }
+      }
+      if (tagId) {
+        await fetch(`${BASE()}/rest/v1/song_tags`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ song_id: songId, tag_id: tagId, group_id: groupId }),
+        });
+      }
+    }
+  };
+
+  const handleAddTagToUrl = (name: string) => {
+    const normalized = name.trim().toLowerCase();
+    if (!normalized || urlTagNames.includes(normalized)) { setUrlTagInput(''); return; }
+    setUrlTagNames(prev => [...prev, normalized]);
+    setUrlTagInput('');
+  };
+
+  const handleRemoveTagFromUrl = (name: string) => {
+    setUrlTagNames(prev => prev.filter(t => t !== name));
+  };
+
+  const handleUrlTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = urlTagInput.trim().toLowerCase();
+      if (!q) return;
+      const exact = urlTagSuggestions.find(t => t.name === q);
+      handleAddTagToUrl(exact ? exact.name : q);
+    }
+  };
+
   const validateUrl = (u: string) => {
     return u.startsWith('http://') || u.startsWith('https://');
   };
@@ -230,6 +299,7 @@ export function AddSongModal({
       const raw = await res.json();
       const newSong = Array.isArray(raw) ? (raw[0] as Song) : null;
       if (!newSong) { setError('Kunne ikke opprett sang.'); return; }
+      if (urlTagNames.length > 0) await saveTagsForSong(newSong.id, urlTagNames);
       await createFolderSongEntry(newSong.id);
     } catch {
       setError('En feil oppstod.');
@@ -271,6 +341,7 @@ export function AddSongModal({
         contentFetched = !!(res.data?.content);
       } catch {}
 
+      if (urlTagNames.length > 0) await saveTagsForSong(newSong.id, urlTagNames);
       await createFolderSongEntry(newSong.id, contentFetched);
       if (!contentFetched) {
         setWarningSongId(newSong.id);
@@ -377,6 +448,9 @@ export function AddSongModal({
     setGroupFavorites([]);
     setFavoritesSearch('');
     setActiveFavFilterTags([]);
+    setActiveMineFilterTags([]);
+    setUrlTagNames([]);
+    setUrlTagInput('');
     setAllSongs([]);
     setAllSongsSearch('');
     setIsFetchingAllSongs(false);
@@ -427,14 +501,22 @@ export function AddSongModal({
 
   const filteredMineSongs = (() => {
     const q = userFavsSearch.trim().toLowerCase();
-    if (!q) return mineSongs;
-    return mineSongs.filter((s) => {
-      const t = s.title?.toLowerCase() ?? '';
-      const a = s.artist?.toLowerCase() ?? '';
-      const c = s.content?.toLowerCase() ?? '';
-      const n = s.song_number?.toLowerCase() ?? '';
-      return t.includes(q) || a.includes(q) || c.includes(q) || n.includes(q);
-    });
+    let result = mineSongs;
+    if (q) {
+      result = result.filter((s) => {
+        const t = s.title?.toLowerCase() ?? '';
+        const a = s.artist?.toLowerCase() ?? '';
+        const c = s.content?.toLowerCase() ?? '';
+        const n = s.song_number?.toLowerCase() ?? '';
+        return t.includes(q) || a.includes(q) || c.includes(q) || n.includes(q);
+      });
+    }
+    if (activeMineFilterTags.length > 0) {
+      result = result.filter(s =>
+        activeMineFilterTags.some(tagId => s.song_tags?.some(st => st.tag_id === tagId))
+      );
+    }
+    return result;
   })();
 
   const filteredAllSongs = (() => {
@@ -491,6 +573,20 @@ export function AddSongModal({
       );
     }
     return result;
+  })();
+
+  const urlTagSuggestions = (() => {
+    const q = urlTagInput.trim().toLowerCase();
+    if (!q) return [];
+    return urlTabTags.filter(t => t.name.includes(q) && !urlTagNames.includes(t.name)).slice(0, 5);
+  })();
+
+  const mineTags = (() => {
+    const tagMap = new Map<string, { id: string; name: string }>();
+    mineSongs.forEach(song => {
+      song.song_tags?.forEach(st => { if (st.tags) tagMap.set(st.tags.id, st.tags); });
+    });
+    return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   })();
 
   const handleOpenChange = (open: boolean) => {
@@ -637,6 +733,57 @@ export function AddSongModal({
                     disabled={isLoading}
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Tagger <span className="text-slate-400 font-normal">(valgfritt)</span>
+                  </label>
+                  {urlTagNames.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {urlTagNames.map(name => (
+                        <span key={name} className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-700">
+                          {name}
+                          <button type="button" onClick={() => handleRemoveTagFromUrl(name)} className="border-0 bg-transparent p-0 leading-none text-sky-500 hover:text-sky-700">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        value={urlTagInput}
+                        onChange={(e) => setUrlTagInput(e.target.value)}
+                        onKeyDown={handleUrlTagInputKeyDown}
+                        placeholder="Legg til tagg…"
+                        disabled={isLoading}
+                      />
+                      {urlTagSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                          {urlTagSuggestions.map(tag => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); handleAddTagToUrl(tag.name); }}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                            >
+                              {tag.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {urlTagInput.trim() && (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); handleAddTagToUrl(urlTagInput); }}
+                        className="flex-shrink-0 self-start inline-flex items-center rounded-full border-0 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                </div>
                 {inputMode === 'lyrics' && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Sangtekst</label>
@@ -713,6 +860,28 @@ export function AddSongModal({
               onChange={(e) => setUserFavsSearch(e.target.value)}
               disabled={isFetchingUserFavs}
             />
+            {mineTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {mineTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() =>
+                      setActiveMineFilterTags(prev =>
+                        prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id]
+                      )
+                    }
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors border-0 ${
+                      activeMineFilterTags.includes(tag.id)
+                        ? 'bg-sky-500 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
+            )}
             {isFetchingUserFavs ? (
               <p className="text-sm text-slate-500">Henter favoritter…</p>
             ) : mineSongs.length === 0 ? (
