@@ -96,6 +96,7 @@ export function AddSongModal({
   const [isSavingManual, setIsSavingManual] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [autoFillHint, setAutoFillHint] = useState('');
+  const [songNumber, setSongNumber] = useState('');
 
   useEffect(() => {
     if (activeTab !== 'mine' || !groupId || !user) return;
@@ -292,6 +293,7 @@ export function AddSongModal({
           url: '',
           content: lyrics,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
+          ...(songNumber.trim() ? { song_number: songNumber.trim() } : {}),
           ...(addedBy ? { added_by: addedBy } : {}),
         }),
       });
@@ -319,6 +321,7 @@ export function AddSongModal({
           title,
           url,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
+          ...(songNumber.trim() ? { song_number: songNumber.trim() } : {}),
           ...(addedBy ? { added_by: addedBy } : {}),
         }),
       });
@@ -462,6 +465,7 @@ export function AddSongModal({
     setArtist('');
     setTitle('');
     setLyrics('');
+    setSongNumber('');
     setExistingSong(null);
     setError('');
     setAutoFillHint('');
@@ -730,6 +734,16 @@ export function AddSongModal({
                     placeholder="Artistnavn"
                     value={artist}
                     onChange={(e) => setArtist(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+                  <Input
+                    type="text"
+                    placeholder="f.eks. 42"
+                    value={songNumber}
+                    onChange={(e) => setSongNumber(e.target.value)}
                     disabled={isLoading}
                   />
                 </div>
