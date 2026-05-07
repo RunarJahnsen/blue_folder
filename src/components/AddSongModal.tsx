@@ -6,8 +6,8 @@ import { useGuestSession } from '@/hooks/useGuestSession';
 import type { Favorite, Song, SongWithTags, Tag, UserFavorite } from '@/lib/types';
 import {
   Sheet,
+  SheetClose,
   SheetContent,
-  SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -598,10 +598,14 @@ export function AddSongModal({
 
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
-      <SheetContent side="bottom" className="!h-[100dvh]">
-        <SheetHeader className="p-0 pb-1">
+      <SheetContent side="bottom" className="!h-[100dvh]" showCloseButton={false}>
+        <div className="flex items-center justify-between pt-1 pb-1">
           <SheetTitle>Legg til sang</SheetTitle>
-        </SheetHeader>
+          <SheetClose className="rounded-full p-1.5 border-0 bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+            <X className="h-5 w-5" />
+            <span className="sr-only">Lukk</span>
+          </SheetClose>
+        </div>
 
         {showFetchWarning ? (
           <div className="mt-4 space-y-4">
@@ -924,11 +928,8 @@ export function AddSongModal({
                           {song.artist ? `${song.artist} — ${song.title}` : song.title}
                         </p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {song.url ? truncateUrl(song.url) : 'Sangtekst'}
-                      </p>
                       {(song as SongWithTags).song_tags && (song as SongWithTags).song_tags!.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <div className="flex flex-wrap gap-1 mt-0.5">
                           {(song as SongWithTags).song_tags!.map(st => st.tags && (
                             <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
                               {st.tags.name}
@@ -1015,7 +1016,15 @@ export function AddSongModal({
                           {fav.songs.artist ? `${fav.songs.artist} — ${fav.songs.title}` : fav.songs.title}
                         </p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">{truncateUrl(fav.songs.url)}</p>
+                      {fav.songs.song_tags && fav.songs.song_tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {fav.songs.song_tags.map(st => st.tags && (
+                            <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
+                              {st.tags.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </button>
                   </div>
                 ))}
@@ -1095,11 +1104,8 @@ export function AddSongModal({
                           {song.artist ? `${song.artist} — ${song.title}` : song.title}
                         </p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {song.url ? truncateUrl(song.url) : 'Sangtekst'}
-                      </p>
                       {(song as SongWithTags).song_tags && (song as SongWithTags).song_tags!.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <div className="flex flex-wrap gap-1 mt-0.5">
                           {(song as SongWithTags).song_tags!.map(st => st.tags && (
                             <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
                               {st.tags.name}
