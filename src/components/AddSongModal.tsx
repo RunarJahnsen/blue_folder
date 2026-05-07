@@ -599,7 +599,7 @@ export function AddSongModal({
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetContent side="bottom" className="!h-[100dvh]" showCloseButton={false}>
-        <div className="flex items-center justify-between pt-1 pb-1">
+        <div className="flex items-center justify-between pt-4 pb-1">
           <SheetTitle>Legg til sang</SheetTitle>
           <SheetClose className="rounded-full p-1.5 border-0 bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors">
             <X className="h-5 w-5" />
