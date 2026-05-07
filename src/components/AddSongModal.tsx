@@ -7,7 +7,6 @@ import type { Favorite, Song, SongWithTags, Tag, UserFavorite } from '@/lib/type
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -599,10 +598,9 @@ export function AddSongModal({
 
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
-      <SheetContent side="bottom">
-        <SheetHeader>
+      <SheetContent side="bottom" className="!h-[100dvh]">
+        <SheetHeader className="p-0 pb-1">
           <SheetTitle>Legg til sang</SheetTitle>
-          <SheetDescription>Legg til ny sang til permen</SheetDescription>
         </SheetHeader>
 
         {showFetchWarning ? (
@@ -636,7 +634,7 @@ export function AddSongModal({
         ) : (
         <>
         {/* Tab toggle */}
-        <div className="flex gap-2 mt-4 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
           {user && (
             <Button
               type="button"
@@ -677,7 +675,7 @@ export function AddSongModal({
         {activeTab === 'url' && (
           <>
             {step === 'input' ? (
-              <div className="space-y-4 mt-6">
+              <div className="space-y-3">
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -825,7 +823,7 @@ export function AddSongModal({
                 </div>
               </div>
             ) : step === 'url-match' ? (
-              <div className="space-y-4 mt-6">
+              <div className="space-y-3">
                 <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-900">
                   Denne URL finnes allerede som <strong>{existingSong?.title}</strong>
                 </div>
@@ -843,7 +841,7 @@ export function AddSongModal({
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 mt-6">
+              <div className="space-y-3">
                 <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-900">
                   Vi fant en sang med samme tittel: <strong>{existingSong?.title}</strong> ({truncateUrl(existingSong?.url || '')})
                 </div>
@@ -866,7 +864,7 @@ export function AddSongModal({
 
         {/* Mine tab */}
         {activeTab === 'mine' && (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-2">
             <Input
               type="text"
               placeholder="Søk på artist, tittel eller tekst…"
@@ -904,9 +902,9 @@ export function AddSongModal({
               <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
               <>
-              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+              <div className="divide-y divide-slate-100">
                 {filteredMineSongs.map((song) => (
-                  <div key={song.id} className="flex items-center gap-3 py-3">
+                  <div key={song.id} className="flex items-center gap-2 py-1.5">
                     <input
                       type="checkbox"
                       checked={selectedSongIds.has(song.id)}
@@ -955,7 +953,7 @@ export function AddSongModal({
 
         {/* Favorites tab */}
         {activeTab === 'favorites' && (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-2">
             <Input
               type="text"
               placeholder="Søk på artist, tittel eller tekst…"
@@ -995,9 +993,9 @@ export function AddSongModal({
               <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
               <>
-              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+              <div className="divide-y divide-slate-100">
                 {filteredFavorites.map((fav) => (
-                  <div key={fav.id} className="flex items-center gap-3 py-3">
+                  <div key={fav.id} className="flex items-center gap-2 py-1.5">
                     <input
                       type="checkbox"
                       checked={selectedSongIds.has(fav.songs.id)}
@@ -1035,7 +1033,7 @@ export function AddSongModal({
 
         {/* All songs tab */}
         {activeTab === 'all' && (
-          <div className="mt-6 space-y-4">
+          <div className="space-y-2">
             <Input
               type="text"
               placeholder="Søk på artist, tittel eller tekst…"
@@ -1075,9 +1073,9 @@ export function AddSongModal({
               <p className="text-sm text-slate-500">Ingen treff.</p>
             ) : (
               <>
-              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+              <div className="divide-y divide-slate-100">
                 {filteredAllSongs.map((song) => (
-                  <div key={song.id} className="flex items-center gap-3 py-3">
+                  <div key={song.id} className="flex items-center gap-2 py-1.5">
                     <input
                       type="checkbox"
                       checked={selectedSongIds.has(song.id)}
