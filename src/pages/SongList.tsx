@@ -707,129 +707,101 @@ export function SongList() {
             <CardContent>{songs.length === 0 ? 'Ingen sanger ennå.' : 'Ingen sanger matcher søket eller valgte filtre.'}</CardContent>
           </Card>
         ) : (
-          <div className="divide-y divide-slate-100 rounded-2xl bg-white shadow-sm overflow-hidden">
+          <div className="grid gap-3">
             {filteredSongs.map((song) => (
-              <div
+              <Card
                 key={song.id}
-                className="px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+                className="cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => setViewingSong(song)}
               >
-                {confirmDeleteId === song.id ? (
-                  <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                    <p className="text-sm text-slate-700">
-                      Slette <strong>{song.artist ? `${song.artist} — ${song.title}` : song.title}</strong> permanent? Dette kan ikke angres.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setConfirmDeleteId(null)}
-                        disabled={isDeleting}
-                      >
-                        Avbryt
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-red-500 hover:bg-red-600 text-white"
-                        onClick={() => handleDelete(song.id)}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? 'Sletter…' : 'Slett permanent'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-2 min-w-0">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(song.id); }}
-                        className="flex-shrink-0 border-0 bg-transparent p-0 mt-0.5 transition-colors"
-                        aria-label={favoriteSongIds.has(song.id) ? 'Fjern fra gruppefavoritter' : 'Legg til gruppefavoritter'}
-                      >
-                        <Heart className={`h-4 w-4 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
-                      </button>
-                      <div className="min-w-0">
-                        <div className="flex items-baseline gap-1.5">
-                          {song.song_number && (
-                            <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
-                          )}
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {song.artist ? `${song.artist} — ${song.title}` : song.title}
-                          </p>
-                        </div>
-                        {song.url && (
-                          <a
-                            href={song.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-slate-400 hover:text-sky-500 truncate block"
-                          >
-                            {song.url.length > 50 ? song.url.slice(0, 47) + '…' : song.url}
-                          </a>
-                        )}
-                        {song.added_by && (
-                          <span className="text-xs text-slate-400">Lagt til av {song.added_by}</span>
-                        )}
-                        {song.song_tags && song.song_tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {song.song_tags.map(st => st.tags && (
-                              <span
-                                key={st.tag_id}
-                                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600"
-                              >
-                                {st.tags.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {(() => {
-                          const stat = playStats.get(song.id);
-                          if (!stat || stat.count === 0) return null;
-                          const lastPlayed = stat.lastPlayedAt
-                            ? new Date(stat.lastPlayedAt).toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                            : null;
-                          return (
-                            <p className="text-xs text-slate-400 mt-1">
-                              Spilt {stat.count} {stat.count === 1 ? 'gang' : 'ganger'}{lastPlayed ? ` · Sist: ${lastPlayed}` : ''}
-                            </p>
-                          );
-                        })()}
+                <CardContent>
+                  {confirmDeleteId === song.id ? (
+                    <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                      <p className="text-sm text-slate-700">
+                        Slette <strong>{song.artist ? `${song.artist} — ${song.title}` : song.title}</strong> permanent? Dette kan ikke angres.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(null)} disabled={isDeleting}>
+                          Avbryt
+                        </Button>
+                        <Button size="sm" className="bg-red-500 hover:bg-red-600 text-white" onClick={() => handleDelete(song.id)} disabled={isDeleting}>
+                          {isDeleting ? 'Sletter…' : 'Slett permanent'}
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {user && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleUserFavorite(song.id)}
-                          className="border-0 bg-transparent p-1.5 transition-colors"
-                          aria-label={userFavoriteSongIds.has(song.id) ? 'Fjern personlig favoritt' : 'Legg til personlig favoritt'}
-                        >
-                          <Star
-                            className={`h-4 w-4 ${userFavoriteSongIds.has(song.id) ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}`}
-                          />
-                        </button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenEdit(song)}
-                      >
-                        Rediger
-                      </Button>
-                      {(isAdmin(groupId!) || (username && song.added_by === username)) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setConfirmDeleteId(song.id)}
-                        >
-                          Slett
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-1.5">
+                            {song.song_number && (
+                              <span className="flex-shrink-0 text-xs text-slate-400 font-medium">#{song.song_number}</span>
+                            )}
+                            <span className="font-medium text-slate-900 break-words">{song.title}</span>
+                          </div>
+                          {song.artist && (
+                            <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>
+                          )}
+                          {song.added_by && (
+                            <p className="text-xs text-slate-400">Lagt til av {song.added_by}</p>
+                          )}
+                          {song.song_tags && song.song_tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {song.song_tags.map(st => st.tags && (
+                                <span key={st.tag_id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">
+                                  {st.tags.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {(() => {
+                            const stat = playStats.get(song.id);
+                            if (!stat || stat.count === 0) return null;
+                            const lastPlayed = stat.lastPlayedAt
+                              ? new Date(stat.lastPlayedAt).toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                              : null;
+                            return (
+                              <p className="text-xs text-slate-400 mt-1">
+                                Spilt {stat.count} {stat.count === 1 ? 'gang' : 'ganger'}{lastPlayed ? ` · Sist: ${lastPlayed}` : ''}
+                              </p>
+                            );
+                          })()}
+                        </div>
+                        <div className="flex-shrink-0 flex items-center -mr-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFavorite(song.id)}
+                            className="border-0 bg-transparent p-2 transition-colors"
+                            aria-label={favoriteSongIds.has(song.id) ? 'Fjern fra gruppefavoritter' : 'Legg til gruppefavoritter'}
+                          >
+                            <Heart className={`h-4 w-4 ${favoriteSongIds.has(song.id) ? 'fill-sky-500 text-sky-500' : 'text-slate-300 hover:text-sky-400'}`} />
+                          </button>
+                          {user && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUserFavorite(song.id)}
+                              className="border-0 bg-transparent p-2 transition-colors"
+                              aria-label={userFavoriteSongIds.has(song.id) ? 'Fjern personlig favoritt' : 'Legg til personlig favoritt'}
+                            >
+                              <Star className={`h-4 w-4 ${userFavoriteSongIds.has(song.id) ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'}`} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        <Button size="sm" variant="outline" onClick={() => handleOpenEdit(song)}>
+                          Rediger
                         </Button>
-                      )}
+                        {(isAdmin(groupId!) || (username && song.added_by === username)) && (
+                          <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(song.id)}>
+                            Slett
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
