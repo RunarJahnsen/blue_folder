@@ -63,6 +63,7 @@ export function AddSongModal({
   const [urlTagNames, setUrlTagNames] = useState<string[]>([]);
   const [urlTagInput, setUrlTagInput] = useState('');
   const [urlTabTags, setUrlTabTags] = useState<Tag[]>([]);
+  const [urlTabArtists, setUrlTabArtists] = useState<string[]>([]);
 
   const [allSongs, setAllSongs] = useState<SongWithTags[]>([]);
   const [isFetchingAllSongs, setIsFetchingAllSongs] = useState(false);
@@ -155,9 +156,18 @@ export function AddSongModal({
     if (activeTab !== 'url' || !groupId) return;
     (async () => {
       const headers = await pgHeaders();
-      const res = await fetch(`${BASE()}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers });
-      const data = await res.json();
-      if (Array.isArray(data)) setUrlTabTags(data as Tag[]);
+      const [tagsRes, artistsRes] = await Promise.all([
+        fetch(`${BASE()}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
+        fetch(`${BASE()}/rest/v1/songs?group_id=eq.${groupId}&select=artist&artist=not.is.null`, { headers }),
+      ]);
+      const [tagsData, artistsData] = await Promise.all([tagsRes.json(), artistsRes.json()]);
+      if (Array.isArray(tagsData)) setUrlTabTags(tagsData as Tag[]);
+      if (Array.isArray(artistsData)) {
+        const unique = Array.from(new Set(
+          (artistsData as { artist: string | null }[]).map(r => r.artist).filter(Boolean) as string[]
+        )).sort((a, b) => a.localeCompare(b, 'nb'));
+        setUrlTabArtists(unique);
+      }
     })();
   }, [activeTab, groupId]);
 
@@ -453,6 +463,7 @@ export function AddSongModal({
     setActiveMineFilterTags([]);
     setUrlTagNames([]);
     setUrlTagInput('');
+    setUrlTabArtists([]);
     setAllSongs([]);
     setAllSongsSearch('');
     setIsFetchingAllSongs(false);
@@ -582,6 +593,12 @@ export function AddSongModal({
     const q = urlTagInput.trim().toLowerCase();
     if (!q) return [];
     return urlTabTags.filter(t => t.name.includes(q) && !urlTagNames.includes(t.name)).slice(0, 5);
+  })();
+
+  const artistSuggestions = (() => {
+    const q = artist.trim().toLowerCase();
+    if (!q) return [];
+    return urlTabArtists.filter(a => a.toLowerCase().includes(q) && a.toLowerCase() !== q).slice(0, 5);
   })();
 
   const mineTags = (() => {
@@ -731,13 +748,29 @@ export function AddSongModal({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Artist <span className="text-slate-400 font-normal">(valgfritt)</span></label>
-                  <Input
-                    type="text"
-                    placeholder="Artistnavn"
-                    value={artist}
-                    onChange={(e) => setArtist(e.target.value)}
-                    disabled={isLoading}
-                  />
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Artistnavn"
+                      value={artist}
+                      onChange={(e) => setArtist(e.target.value)}
+                      disabled={isLoading}
+                    />
+                    {artistSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                        {artistSuggestions.map(a => (
+                          <button
+                            key={a}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); setArtist(a); }}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                          >
+                            {a}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span></label>

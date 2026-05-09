@@ -184,6 +184,24 @@ export function SongList() {
     return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [songs]);
 
+  const uniqueArtists = useMemo(() => {
+    const set = new Set<string>();
+    songs.forEach(s => { if (s.artist) set.add(s.artist); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'nb'));
+  }, [songs]);
+
+  const newArtistSuggestions = useMemo(() => {
+    const q = newArtist.trim().toLowerCase();
+    if (!q) return [];
+    return uniqueArtists.filter(a => a.toLowerCase().includes(q) && a.toLowerCase() !== q).slice(0, 5);
+  }, [newArtist, uniqueArtists]);
+
+  const editArtistSuggestions = useMemo(() => {
+    const q = editArtist.trim().toLowerCase();
+    if (!q) return [];
+    return uniqueArtists.filter(a => a.toLowerCase().includes(q) && a.toLowerCase() !== q).slice(0, 5);
+  }, [editArtist, uniqueArtists]);
+
   const uniqueAddedBy = useMemo(() => {
     const set = new Set<string>();
     songs.forEach(s => { if (s.added_by) set.add(s.added_by); });
@@ -870,7 +888,23 @@ export function SongList() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">Artist <span className="text-slate-400 font-normal">(valgfritt)</span></label>
-              <Input placeholder="Artistnavn" value={newArtist} onChange={(e) => setNewArtist(e.target.value)} disabled={isCreatingSong} />
+              <div className="relative">
+                <Input placeholder="Artistnavn" value={newArtist} onChange={(e) => setNewArtist(e.target.value)} disabled={isCreatingSong} />
+                {newArtistSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                    {newArtistSuggestions.map(a => (
+                      <button
+                        key={a}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setNewArtist(a); }}
+                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span></label>
@@ -984,11 +1018,27 @@ export function SongList() {
               <label className="text-sm font-medium text-slate-700">
                 Artist <span className="text-slate-400 font-normal">(valgfritt)</span>
               </label>
-              <Input
-                value={editArtist}
-                onChange={(e) => setEditArtist(e.target.value)}
-                placeholder="Artistnavn"
-              />
+              <div className="relative">
+                <Input
+                  value={editArtist}
+                  onChange={(e) => setEditArtist(e.target.value)}
+                  placeholder="Artistnavn"
+                />
+                {editArtistSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-10 mt-1 rounded-xl bg-white shadow-md overflow-hidden">
+                    {editArtistSuggestions.map(a => (
+                      <button
+                        key={a}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setEditArtist(a); }}
+                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-0 bg-transparent"
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">
