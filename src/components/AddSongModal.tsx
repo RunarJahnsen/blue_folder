@@ -85,6 +85,7 @@ export function AddSongModal({
   const [step, setStep] = useState<Step>('input');
   const [url, setUrl] = useState('');
   const [artist, setArtist] = useState('');
+  const [listenUrl, setListenUrl] = useState('');
   const [title, setTitle] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [existingSong, setExistingSong] = useState<Song | null>(null);
@@ -302,6 +303,7 @@ export function AddSongModal({
           url: '',
           content: lyrics,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
+          ...(listenUrl.trim() ? { listen_url: listenUrl.trim() } : {}),
           ...(songNumber.trim() ? { song_number: songNumber.trim() } : {}),
           ...(addedBy ? { added_by: addedBy } : {}),
         }),
@@ -330,6 +332,7 @@ export function AddSongModal({
           title,
           url,
           ...(artist.trim() ? { artist: artist.trim() } : {}),
+          ...(listenUrl.trim() ? { listen_url: listenUrl.trim() } : {}),
           ...(songNumber.trim() ? { song_number: songNumber.trim() } : {}),
           ...(addedBy ? { added_by: addedBy } : {}),
         }),
@@ -473,6 +476,7 @@ export function AddSongModal({
     setStep('input');
     setUrl('');
     setArtist('');
+    setListenUrl('');
     setTitle('');
     setLyrics('');
     setSongNumber('');
@@ -771,6 +775,16 @@ export function AddSongModal({
                       </div>
                     )}
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Lyttelenke <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+                  <Input
+                    type="text"
+                    placeholder="https://open.spotify.com/..."
+                    value={listenUrl}
+                    onChange={(e) => setListenUrl(e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span></label>

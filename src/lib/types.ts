@@ -27,6 +27,7 @@ export interface Song {
   title: string;
   artist?: string;
   url: string;
+  listen_url?: string;
   content?: string;
   source_label?: string;
   song_number?: string;

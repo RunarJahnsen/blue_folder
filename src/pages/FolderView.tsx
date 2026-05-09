@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, GripVertical, Heart, Plus, Star } from 'lucide-react';
+import { ArrowLeft, GripVertical, Heart, PlayCircle, Plus, Star } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -113,6 +113,18 @@ function SortableQueueItem({
                   {titleEl}
                 </div>
                 {song?.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
+                {song?.listen_url && (
+                  <a
+                    href={song.listen_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-xs text-sky-600 hover:underline mt-0.5"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5" />
+                    Lytt til sangen
+                  </a>
+                )}
               </div>
               <div className="flex-shrink-0 flex items-center -mr-2">
                 <button
@@ -214,7 +226,7 @@ export function FolderView() {
         setFolder(folderData);
 
         const entriesRes = await fetch(
-          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content,song_number)&order=state.asc,position.asc`,
+          `${base}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,listen_url,content,song_number)&order=state.asc,position.asc`,
           { headers }
         );
         const entriesRaw = await entriesRes.json();
@@ -262,7 +274,7 @@ export function FolderView() {
           const newRow = payload.new as FolderSongEntry;
           const headers = await pgHeaders();
           const res = await fetch(
-            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content,song_number)`,
+            `${BASE()}/rest/v1/folder_song_entries?id=eq.${newRow.id}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,listen_url,content,song_number)`,
             { headers }
           );
           const raw = await res.json();
@@ -727,7 +739,7 @@ export function FolderView() {
       try {
         const headers = await pgHeaders();
         const res = await fetch(
-          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,content,song_number)&order=state.asc,position.asc`,
+          `${BASE()}/rest/v1/folder_song_entries?folder_id=eq.${folderId}&select=id,folder_id,song_id,state,position,played_at,songs(id,title,artist,url,listen_url,content,song_number)&order=state.asc,position.asc`,
           { headers }
         );
         const raw = await res.json();
@@ -772,6 +784,17 @@ export function FolderView() {
           {titleEl}
         </div>
         {song.artist && <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>}
+        {song.listen_url && (
+          <a
+            href={song.listen_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-sky-600 hover:underline mt-0.5"
+          >
+            <PlayCircle className="h-3.5 w-3.5" />
+            Lytt til sangen
+          </a>
+        )}
       </div>
     );
   };
@@ -957,6 +980,17 @@ export function FolderView() {
                 <h2 className="text-2xl font-bold text-slate-900">{(currentEntry.songs as Song).title || 'Ukjent sang'}</h2>
                 {(currentEntry.songs as Song).artist && (
                   <p className="text-sm text-slate-500 mt-0.5">{(currentEntry.songs as Song).artist}</p>
+                )}
+                {(currentEntry.songs as Song).listen_url && (
+                  <a
+                    href={(currentEntry.songs as Song).listen_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-sky-600 hover:underline mt-1"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5" />
+                    Lytt til sangen
+                  </a>
                 )}
               </div>
               {(currentEntry.songs as Song).content ? (

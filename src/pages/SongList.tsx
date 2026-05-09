@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Plus, Star, X } from 'lucide-react';
+import { ArrowLeft, Heart, PlayCircle, Plus, Star, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Favorite, SongWithTags, Tag, SongTagEntry, UserFavorite } from '@/lib/types';
 import { useAuth } from '@/hooks/useAuth';
@@ -52,6 +52,7 @@ export function SongList() {
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
   const [editUrl, setEditUrl] = useState('');
+  const [editListenUrl, setEditListenUrl] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editSongNumber, setEditSongNumber] = useState('');
   const [editTagNames, setEditTagNames] = useState<string[]>([]);
@@ -68,6 +69,7 @@ export function SongList() {
   const [newTitle, setNewTitle] = useState('');
   const [newArtist, setNewArtist] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const [newListenUrl, setNewListenUrl] = useState('');
   const [newLyrics, setNewLyrics] = useState('');
   const [newSongNumber, setNewSongNumber] = useState('');
   const [newTagNames, setNewTagNames] = useState<string[]>([]);
@@ -83,7 +85,7 @@ export function SongList() {
       const headers = await pgHeaders();
       const base = BASE();
       const [songsRes, favsRes, tagsRes, userFavsRes, playedRes] = await Promise.all([
-        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,content,song_number,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
+        fetch(`${base}/rest/v1/songs?group_id=eq.${groupId}&select=id,group_id,title,artist,url,listen_url,content,song_number,added_by,created_at,updated_at,song_tags(id,tag_id,tags(id,name))&order=title.asc`, { headers }),
         fetch(`${base}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
         fetch(`${base}/rest/v1/tags?group_id=eq.${groupId}&select=id,group_id,name,created_at&order=name.asc`, { headers }),
         fetch(`${base}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id`, { headers }),
@@ -306,6 +308,7 @@ export function SongList() {
     setEditTitle(song.title ?? '');
     setEditArtist(song.artist ?? '');
     setEditUrl(song.url ?? '');
+    setEditListenUrl(song.listen_url ?? '');
     setEditContent(song.content ?? '');
     setEditSongNumber(song.song_number ?? '');
     setEditTagNames(
@@ -395,6 +398,7 @@ export function SongList() {
         title: newTitle.trim(),
         url: newInputMode === 'url' ? newUrl.trim() : '',
         ...(newArtist.trim() ? { artist: newArtist.trim() } : {}),
+        ...(newListenUrl.trim() ? { listen_url: newListenUrl.trim() } : {}),
         ...(newSongNumber.trim() ? { song_number: newSongNumber.trim() } : {}),
         ...(newInputMode === 'lyrics' && newLyrics.trim() ? { content: newLyrics.trim() } : {}),
         ...(username ? { added_by: username } : {}),
@@ -460,7 +464,7 @@ export function SongList() {
     }
 
     if (created) setSongs(prev => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
-    setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics('');
+    setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewListenUrl(''); setNewLyrics('');
     setNewSongNumber(''); setNewTagNames([]); setNewTagInput('');
     setIsAddingSong(false);
     setIsCreatingSong(false);
@@ -504,6 +508,7 @@ export function SongList() {
         title: editTitle.trim(),
         artist: editArtist.trim() || null,
         url: editUrl.trim(),
+        listen_url: editListenUrl.trim() || null,
         content: editContent.trim() || null,
         song_number: editSongNumber.trim() || null,
         ...(updatedBy ? { updated_by: updatedBy } : {}),
@@ -566,6 +571,7 @@ export function SongList() {
             title: editTitle.trim(),
             artist: editArtist.trim() || undefined,
             url: editUrl.trim(),
+            listen_url: editListenUrl.trim() || undefined,
             content: editContent.trim() || undefined,
             song_number: editSongNumber.trim() || undefined,
             song_tags: newSongTags,
@@ -774,6 +780,18 @@ export function SongList() {
                           {song.artist && (
                             <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>
                           )}
+                          {song.listen_url && (
+                            <a
+                              href={song.listen_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:underline mt-0.5"
+                            >
+                              <PlayCircle className="h-3.5 w-3.5" />
+                              Lytt til sangen
+                            </a>
+                          )}
                           {song.song_tags && song.song_tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
                               {song.song_tags.map(st => st.tags && (
@@ -853,7 +871,7 @@ export function SongList() {
       <Sheet open={isAddingSong} onOpenChange={(open) => {
         if (!open) {
           setIsAddingSong(false);
-          setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewLyrics('');
+          setNewTitle(''); setNewArtist(''); setNewUrl(''); setNewListenUrl(''); setNewLyrics('');
           setNewSongNumber(''); setNewTagNames([]); setNewTagInput('');
           setNewError(''); setNewAutoFillHint(''); setIsNewAutoFilling(false);
         }
@@ -905,6 +923,10 @@ export function SongList() {
                   </div>
                 )}
               </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Lyttelenke <span className="text-slate-400 font-normal">(valgfritt)</span></label>
+              <Input placeholder="https://open.spotify.com/..." value={newListenUrl} onChange={(e) => setNewListenUrl(e.target.value)} disabled={isCreatingSong} />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">Sangnummer <span className="text-slate-400 font-normal">(valgfritt)</span></label>
@@ -1039,6 +1061,16 @@ export function SongList() {
                   </div>
                 )}
               </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">
+                Lyttelenke <span className="text-slate-400 font-normal">(valgfritt)</span>
+              </label>
+              <Input
+                value={editListenUrl}
+                onChange={(e) => setEditListenUrl(e.target.value)}
+                placeholder="https://open.spotify.com/..."
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">
