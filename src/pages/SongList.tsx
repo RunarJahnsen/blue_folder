@@ -13,6 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { SongContentSheet } from '@/components/SongContentSheet';
 
 async function pgHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -57,6 +58,9 @@ export function SongList() {
   const [tagInput, setTagInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
+
+  // Content view sheet state
+  const [viewingSong, setViewingSong] = useState<SongWithTags | null>(null);
 
   // New song sheet state
   const [isAddingSong, setIsAddingSong] = useState(false);
@@ -705,9 +709,13 @@ export function SongList() {
         ) : (
           <div className="divide-y divide-slate-100 rounded-2xl bg-white shadow-sm overflow-hidden">
             {filteredSongs.map((song) => (
-              <div key={song.id} className="px-5 py-4">
+              <div
+                key={song.id}
+                className="px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+                onClick={() => setViewingSong(song)}
+              >
                 {confirmDeleteId === song.id ? (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                     <p className="text-sm text-slate-700">
                       Slette <strong>{song.artist ? `${song.artist} — ${song.title}` : song.title}</strong> permanent? Dette kan ikke angres.
                     </p>
@@ -735,7 +743,7 @@ export function SongList() {
                     <div className="flex items-start gap-2 min-w-0">
                       <button
                         type="button"
-                        onClick={() => handleToggleFavorite(song.id)}
+                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(song.id); }}
                         className="flex-shrink-0 border-0 bg-transparent p-0 mt-0.5 transition-colors"
                         aria-label={favoriteSongIds.has(song.id) ? 'Fjern fra gruppefavoritter' : 'Legg til gruppefavoritter'}
                       >
@@ -789,7 +797,7 @@ export function SongList() {
                         })()}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       {user && (
                         <button
                           type="button"
@@ -826,6 +834,14 @@ export function SongList() {
           </div>
         )}
       </div>
+
+      {/* Vis sangtekst sheet */}
+      <SongContentSheet
+        isOpen={!!viewingSong}
+        onClose={() => setViewingSong(null)}
+        song={viewingSong}
+        noContentMessage="Ingen tekst tilgjengelig for denne sangen."
+      />
 
       {/* Ny sang sheet */}
       <Sheet open={isAddingSong} onOpenChange={(open) => {

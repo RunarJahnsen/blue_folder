@@ -10,9 +10,10 @@ interface SongContentSheetProps {
   isOpen: boolean;
   onClose: () => void;
   song: Song | null;
+  noContentMessage?: string;
 }
 
-export function SongContentSheet({ isOpen, onClose, song }: SongContentSheetProps) {
+export function SongContentSheet({ isOpen, onClose, song, noContentMessage = 'Ingen tekst tilgjengelig.' }: SongContentSheetProps) {
   if (!song) return null;
 
   return (
@@ -37,9 +38,13 @@ export function SongContentSheet({ isOpen, onClose, song }: SongContentSheetProp
           )}
         </SheetHeader>
         <div className="flex-1 overflow-y-auto mt-4">
-          <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-800">
-            {song.content}
-          </pre>
+          {song.content ? (
+            <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-800">
+              {song.content}
+            </pre>
+          ) : (
+            <p className="text-sm text-slate-400">{noContentMessage}</p>
+          )}
         </div>
       </SheetContent>
     </Sheet>
