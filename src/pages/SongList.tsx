@@ -44,7 +44,7 @@ export function SongList() {
   const [activeAddedByFilter, setActiveAddedByFilter] = useState<string[]>([]);
   const [filterMyFavorites, setFilterMyFavorites] = useState(false);
   const [filterGroupFavorites, setFilterGroupFavorites] = useState(false);
-  const [sortBy, setSortBy] = useState<'alpha-asc' | 'alpha-desc' | 'artist-asc' | 'artist-desc' | 'plays' | 'recent' | 'newest' | 'oldest'>('alpha-asc');
+  const [sortBy, setSortBy] = useState<'alpha-asc' | 'alpha-desc' | 'artist-asc' | 'artist-desc' | 'plays' | 'recent' | 'newest' | 'oldest' | 'number-asc' | 'number-desc'>('alpha-asc');
   const [playedEntries, setPlayedEntries] = useState<Array<{ song_id: string; played_at: string | null }>>([]);
 
   // Edit sheet state
@@ -235,6 +235,18 @@ export function SongList() {
       result = [...result].sort((a, b) => b.created_at.localeCompare(a.created_at));
     } else if (sortBy === 'oldest') {
       result = [...result].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    } else if (sortBy === 'number-asc') {
+      result = [...result].sort((a, b) => {
+        const na = a.song_number != null ? parseInt(a.song_number, 10) : Infinity;
+        const nb = b.song_number != null ? parseInt(b.song_number, 10) : Infinity;
+        return na - nb;
+      });
+    } else if (sortBy === 'number-desc') {
+      result = [...result].sort((a, b) => {
+        const na = a.song_number != null ? parseInt(a.song_number, 10) : -Infinity;
+        const nb = b.song_number != null ? parseInt(b.song_number, 10) : -Infinity;
+        return nb - na;
+      });
     }
     return result;
   }, [songs, search, activeAddedByFilter, activeFilterTags, filterMyFavorites, filterGroupFavorites, userFavoriteSongIds, favoriteSongIds, sortBy, playStats]);
@@ -603,6 +615,8 @@ export function SongList() {
             <option value="recent">Sist spilt</option>
             <option value="newest">Nyest lagt til</option>
             <option value="oldest">Først lagt til</option>
+            <option value="number-asc">Nummer stigende</option>
+            <option value="number-desc">Nummer synkende</option>
           </select>
         </div>
 
@@ -742,9 +756,6 @@ export function SongList() {
                           {song.artist && (
                             <p className="text-xs text-slate-400 mt-0.5">{song.artist}</p>
                           )}
-                          {song.added_by && (
-                            <p className="text-xs text-slate-400">Lagt til av {song.added_by}</p>
-                          )}
                           {song.song_tags && song.song_tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
                               {song.song_tags.map(st => st.tags && (
@@ -788,15 +799,20 @@ export function SongList() {
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-2 justify-end flex-wrap" onClick={(e) => e.stopPropagation()}>
-                        <Button size="sm" variant="outline" onClick={() => handleOpenEdit(song)}>
-                          Rediger
-                        </Button>
-                        {(isAdmin(groupId!) || (username && song.added_by === username)) && (
-                          <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(song.id)}>
-                            Slett
+                      <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-slate-400">
+                          {song.added_by ? `Lagt til av ${song.added_by}` : ''}
+                        </span>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button size="sm" variant="outline" onClick={() => handleOpenEdit(song)}>
+                            Rediger
                           </Button>
-                        )}
+                          {(isAdmin(groupId!) || (username && song.added_by === username)) && (
+                            <Button size="sm" variant="outline" onClick={() => setConfirmDeleteId(song.id)}>
+                              Slett
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
