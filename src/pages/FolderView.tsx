@@ -855,6 +855,10 @@ export function FolderView() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
+              <div className="flex items-center gap-2 mb-1">
+                <img src="/blue_folder_logo.svg" alt="" width={24} height={24} />
+                <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+              </div>
               <h1 className="text-3xl font-semibold text-slate-900">{folder.title}</h1>
               <p className="text-sm text-slate-600">{folder.date}</p>
             </div>

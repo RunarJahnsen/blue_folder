@@ -176,6 +176,10 @@ export function FolderNew() {
       <div className="mx-auto max-w-2xl space-y-6">
         <Card className="rounded-2xl">
           <CardHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <img src="/blue_folder_logo.svg" alt="" width={24} height={24} />
+              <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+            </div>
             <CardTitle>Opprett ny perm</CardTitle>
             <CardDescription>Legg inn tittel, dato og modus for den kommende permen.</CardDescription>
           </CardHeader>
