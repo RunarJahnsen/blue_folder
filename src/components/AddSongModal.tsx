@@ -72,6 +72,28 @@ export function AddSongModal({
   const [activeModalFilterTags, setActiveModalFilterTags] = useState<string[]>([]);
 
   const [selectedSongIds, setSelectedSongIds] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<'alpha-asc' | 'alpha-desc' | 'artist-asc' | 'artist-desc' | 'newest' | 'oldest' | 'number-asc' | 'number-desc'>('alpha-asc');
+
+  const sortSongs = <T extends { title: string; artist?: string; song_number?: string; created_at: string }>(arr: T[]): T[] => {
+    const sorted = [...arr];
+    if (sortBy === 'alpha-asc') return sorted.sort((a, b) => a.title.localeCompare(b.title, 'nb'));
+    if (sortBy === 'alpha-desc') return sorted.sort((a, b) => b.title.localeCompare(a.title, 'nb'));
+    if (sortBy === 'artist-asc') return sorted.sort((a, b) => (a.artist ?? a.title).localeCompare(b.artist ?? b.title, 'nb'));
+    if (sortBy === 'artist-desc') return sorted.sort((a, b) => (b.artist ?? b.title).localeCompare(a.artist ?? a.title, 'nb'));
+    if (sortBy === 'newest') return sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    if (sortBy === 'oldest') return sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    if (sortBy === 'number-asc') return sorted.sort((a, b) => {
+      const na = a.song_number != null ? parseInt(a.song_number, 10) : Infinity;
+      const nb = b.song_number != null ? parseInt(b.song_number, 10) : Infinity;
+      return na - nb;
+    });
+    if (sortBy === 'number-desc') return sorted.sort((a, b) => {
+      const na = a.song_number != null ? parseInt(a.song_number, 10) : -Infinity;
+      const nb = b.song_number != null ? parseInt(b.song_number, 10) : -Infinity;
+      return nb - na;
+    });
+    return sorted;
+  };
 
   const toggleSong = (songId: string) => {
     setSelectedSongIds(prev => {
@@ -105,7 +127,7 @@ export function AddSongModal({
     (async () => {
       const headers = await pgHeaders();
       const res = await fetch(
-        `${BASE()}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id,songs(id,title,artist,url,content,song_number,added_by,song_tags(id,tag_id,tags(id,name)))`,
+        `${BASE()}/rest/v1/user_favorites?group_id=eq.${groupId}&select=id,song_id,songs(id,title,artist,url,content,song_number,added_by,created_at,song_tags(id,tag_id,tags(id,name)))`,
         { headers }
       );
       const data = await res.json();
@@ -127,7 +149,7 @@ export function AddSongModal({
     (async () => {
       const headers = await pgHeaders();
       const res = await fetch(
-        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,song_number,added_by,song_tags(id,tag_id,tags(id,name)))`,
+        `${BASE()}/rest/v1/favorites?group_id=eq.${groupId}&select=id,song_id,group_id,created_at,songs(id,title,artist,url,content,song_number,added_by,created_at,song_tags(id,tag_id,tags(id,name)))`,
         { headers }
       );
       const data = await res.json();
@@ -456,6 +478,7 @@ export function AddSongModal({
     setManualContent('');
     setIsSavingManual(false);
     setSelectedSongIds(new Set());
+    setSortBy('alpha-asc');
     setActiveTab(user ? 'mine' : 'favorites');
     setMineSongs([]);
     setUserFavsSearch('');
@@ -534,7 +557,7 @@ export function AddSongModal({
         activeMineFilterTags.some(tagId => s.song_tags?.some(st => st.tag_id === tagId))
       );
     }
-    return result;
+    return sortSongs(result);
   })();
 
   const filteredAllSongs = (() => {
@@ -557,7 +580,7 @@ export function AddSongModal({
         )
       );
     }
-    return result;
+    return sortSongs(result);
   })();
 
   const favTags = (() => {
@@ -590,7 +613,9 @@ export function AddSongModal({
         )
       );
     }
-    return result;
+    const sortedSongs = sortSongs(result.map(f => f.songs));
+    const songOrder = new Map(sortedSongs.map((s, i) => [s.id, i]));
+    return [...result].sort((a, b) => (songOrder.get(a.songs.id) ?? 0) - (songOrder.get(b.songs.id) ?? 0));
   })();
 
   const urlTagSuggestions = (() => {
@@ -916,13 +941,30 @@ export function AddSongModal({
         {/* Mine tab */}
         {activeTab === 'mine' && (
           <div className="space-y-2">
-            <Input
-              type="text"
-              placeholder="Søk på artist, tittel eller tekst…"
-              value={userFavsSearch}
-              onChange={(e) => setUserFavsSearch(e.target.value)}
-              disabled={isFetchingUserFavs}
-            />
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Søk på artist, tittel eller tekst…"
+                value={userFavsSearch}
+                onChange={(e) => setUserFavsSearch(e.target.value)}
+                disabled={isFetchingUserFavs}
+                className="flex-1"
+              />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 flex-shrink-0"
+              >
+                <option value="alpha-asc">Tittel A–Å</option>
+                <option value="alpha-desc">Tittel Å–A</option>
+                <option value="artist-asc">Artist A–Å</option>
+                <option value="artist-desc">Artist Å–A</option>
+                <option value="newest">Nyest lagt til</option>
+                <option value="oldest">Først lagt til</option>
+                <option value="number-asc">Nummer stigende</option>
+                <option value="number-desc">Nummer synkende</option>
+              </select>
+            </div>
             {mineTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {mineTags.map(tag => (
@@ -1002,13 +1044,30 @@ export function AddSongModal({
         {/* Favorites tab */}
         {activeTab === 'favorites' && (
           <div className="space-y-2">
-            <Input
-              type="text"
-              placeholder="Søk på artist, tittel eller tekst…"
-              value={favoritesSearch}
-              onChange={(e) => setFavoritesSearch(e.target.value)}
-              disabled={isFetchingFavorites}
-            />
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Søk på artist, tittel eller tekst…"
+                value={favoritesSearch}
+                onChange={(e) => setFavoritesSearch(e.target.value)}
+                disabled={isFetchingFavorites}
+                className="flex-1"
+              />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 flex-shrink-0"
+              >
+                <option value="alpha-asc">Tittel A–Å</option>
+                <option value="alpha-desc">Tittel Å–A</option>
+                <option value="artist-asc">Artist A–Å</option>
+                <option value="artist-desc">Artist Å–A</option>
+                <option value="newest">Nyest lagt til</option>
+                <option value="oldest">Først lagt til</option>
+                <option value="number-asc">Nummer stigende</option>
+                <option value="number-desc">Nummer synkende</option>
+              </select>
+            </div>
             {favTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {favTags.map(tag => (
@@ -1090,13 +1149,30 @@ export function AddSongModal({
         {/* All songs tab */}
         {activeTab === 'all' && (
           <div className="space-y-2">
-            <Input
-              type="text"
-              placeholder="Søk på artist, tittel eller tekst…"
-              value={allSongsSearch}
-              onChange={(e) => setAllSongsSearch(e.target.value)}
-              disabled={isFetchingAllSongs}
-            />
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Søk på artist, tittel eller tekst…"
+                value={allSongsSearch}
+                onChange={(e) => setAllSongsSearch(e.target.value)}
+                disabled={isFetchingAllSongs}
+                className="flex-1"
+              />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="rounded-xl border-0 bg-white shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 flex-shrink-0"
+              >
+                <option value="alpha-asc">Tittel A–Å</option>
+                <option value="alpha-desc">Tittel Å–A</option>
+                <option value="artist-asc">Artist A–Å</option>
+                <option value="artist-desc">Artist Å–A</option>
+                <option value="newest">Nyest lagt til</option>
+                <option value="oldest">Først lagt til</option>
+                <option value="number-asc">Nummer stigende</option>
+                <option value="number-desc">Nummer synkende</option>
+              </select>
+            </div>
             {allModalTags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {allModalTags.map(tag => (
