@@ -603,7 +603,10 @@ export function SongList() {
           </div>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+              <div className="flex items-center gap-2">
+                <img src="/blue_folder_logo.svg" alt="" width={24} height={24} />
+                <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+              </div>
               <h1 className="text-2xl font-semibold text-slate-900">Sanger</h1>
               <p className="text-sm text-slate-600">Alle sanger lagret i gruppen.</p>
             </div>

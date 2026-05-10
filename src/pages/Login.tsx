@@ -51,6 +51,9 @@ export function Login() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="rounded-2xl bg-white p-8 shadow-sm">
+          <div className="flex justify-center mb-4">
+            <img src="/blue_folder_logo.svg" alt="Blå perm" width={80} height={80} />
+          </div>
           <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold mb-1">Blå perm</p>
           <h1 className="text-2xl font-semibold text-slate-900 mb-6">Logg inn</h1>
 

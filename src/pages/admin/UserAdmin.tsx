@@ -218,7 +218,10 @@ export function UserAdmin() {
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
         <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+            <div className="flex items-center gap-2">
+              <img src="/blue_folder_logo.svg" alt="" width={24} height={24} />
+              <p className="text-sm uppercase tracking-[0.24em] text-sky-600 font-semibold">Blå perm</p>
+            </div>
             <h1 className="text-2xl font-semibold text-slate-900">Brukeradmin</h1>
           </div>
           <Button variant="outline" onClick={() => navigate(`/${groupId}`)}>
